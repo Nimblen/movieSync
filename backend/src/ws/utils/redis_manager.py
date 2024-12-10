@@ -1,10 +1,14 @@
-from utils.redis_client import redis_client
+from src.ws.utils.redis_client import redis_client
 
 
 class RoomRedisManager:
     @staticmethod
     def set_room_state(room_id, current_time, is_playing):
         """Set room state"""
+        if is_playing:
+            is_playing = "true"
+        else:
+            is_playing = "false"
         redis_client.hmset(
             f"room:{room_id}",
             {
@@ -38,3 +42,21 @@ class RoomRedisManager:
         """Delete room"""
         redis_client.delete(f"room:{room_id}")
         redis_client.delete(f"room:{room_id}:users")
+
+    @staticmethod
+    def add_message_to_room(room_id, username, message):
+        """Add message to room"""
+        redis_client.rpush(
+            f"room:{room_id}:messages",
+            f"{username}: {message}"
+        )
+
+    @staticmethod
+    def get_room_messages(room_id, limit=50):
+        """Get room messages"""
+        return redis_client.lrange(f"room:{room_id}:messages", -limit, -1)
+
+    @staticmethod
+    def clear_room_messages(room_id):
+        """Clear room messages"""
+        redis_client.delete(f"room:{room_id}:messages")

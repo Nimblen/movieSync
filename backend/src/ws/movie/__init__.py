@@ -1,6 +1,6 @@
-from django.urls import path
-from src.apps.core.consumers import JSONRPCConsumer
+from django.urls import re_path
+from src.ws.movie.consumers import MovieStateConsumer
 
-websocket_urlpatterns = [
-    path('ws/movie/<str:movie_id>/', JSONRPCConsumer.as_asgi()),
+movie_websocket_urlpatterns = [
+    re_path(r'ws/movie/(?P<room_name>[^/]+)/', MovieStateConsumer.as_asgi()),
 ]
