@@ -47,6 +47,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "src.apps.movie",
+    "src.apps.gallery",
 ]
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
