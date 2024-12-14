@@ -43,6 +43,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "django_filters",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -150,7 +151,6 @@ USE_TZ = True
 STATIC_ROOT = str(BASE_DIR / "static")
 STATIC_URL = "static/"
 
-
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
     "django.contrib.staticfiles.finders.AppDirectoriesFinder",
@@ -183,6 +183,7 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DATETIME_INPUT_FORMATS": ["%Y-%m-%d %H:%M"],
     "DATE_INPUT_FORMATS": ["%Y-%m-%d"],
-    "EXCEPTION_HANDLER": "drf_lib.errors.handler.custom_exception_handler",
-    "DEFAULT_PAGINATION_CLASS": "src.apps.core.pagination.CustomPageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
 }
+
+
