@@ -1,16 +1,20 @@
 from src.ws.utils.rpc_registry import rpc_method
-from src.ws.utils.redis_manager import RoomRedisManager
+from src.apps.room.services import RoomStateService, ChatService, UserService
+from src.apps.core.repositories.redis_repository import RedisRepository
 
+
+repository = RedisRepository()
+RoomStateManager = RoomStateService(repository)
+RoomUserManager = UserService(repository)
+RoomMessageManager = ChatService(repository)
 
 @rpc_method
 def get_initial_state(params):
     return {
         "success": True,
-        "state": RoomRedisManager.get_room_state(params["room_id"]),
-        "users": list(RoomRedisManager.get_users_in_room(params["room_id"])),
-        "messages": RoomRedisManager.get_room_messages(
-            params["room_id"], params.get("limit", 50)
-        ),
+        "state": RoomStateManager.get_room_state(params["room_id"]),
+        "users": list(RoomUserManager.get_users_in_room(params["room_id"])),
+        "messages": RoomMessageManager.get_messages(params["room_id"]),
         "type": "initial_state",
     }
 
@@ -20,8 +24,8 @@ def set_sync_state(params):
     """
     set state
     """
-    RoomRedisManager.set_room_state(
-        params["room_id"], params["current_time"], params["is_playing"]
+    RoomStateManager.set_room_state(
+        params["room_id"], params
     )
     return {"success": True, "state": params, "type": "set_sync_state"}
 
@@ -31,17 +35,17 @@ def get_sync_state(params):
     """
     get state
     """
-    RoomRedisManager.get_room_state(params["room_id"])
+    RoomStateManager.get_room_state(params["room_id"])
     return {
         "success": True,
-        "state": RoomRedisManager.get_room_state(params["room_id"]),
+        "state": RoomStateManager.get_room_state(params["room_id"]),
         "type": "get_sync_state",
     }
 
 
 @rpc_method
 def send_chat_message(params):
-    RoomRedisManager.add_message_to_room(
+    RoomMessageManager.add_message(
         params["room_id"], params["username"], params["message"]
     )
     return {"success": True, "message": params["message"], "type": "chat_message"}
@@ -51,7 +55,7 @@ def send_chat_message(params):
 def get_room_messages(params):
     return {
         "success": True,
-        "messages": RoomRedisManager.get_room_messages(
+        "messages": RoomMessageManager.get_messages(
             params["room_id"], params.get("limit", 50)
         ),
         "type": "get_room_messages",

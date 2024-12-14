@@ -1,6 +1,10 @@
 
 
 
+class RoomRedisKeys:
+    ROOMS = "room"
+    MESSAGES= "messages"
+    USERS = "users"
 
 
 
@@ -14,5 +18,4 @@ class RoomTypes:
         (PUBLIC, "Public"),
         (PRIVATE, "Private"),
     ]
-
 

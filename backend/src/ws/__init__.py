@@ -1,4 +1,4 @@
-from src.ws.movie import movie_websocket_urlpatterns
+from src.ws.room import movie_websocket_urlpatterns
 
 
 

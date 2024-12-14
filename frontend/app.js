@@ -120,8 +120,9 @@ videoPlayer.addEventListener("play", () => {
         method: "set_sync_state",
         params: {
             room_id: roomId,
+            movie_id: "5",
             current_time: videoPlayer.currentTime,
-            is_playing: true
+            is_playing: 1
         },
         id: 4
     }));
@@ -133,8 +134,9 @@ videoPlayer.addEventListener("pause", () => {
         method: "set_sync_state",
         params: {
             room_id: roomId,
+            movie_id: "5",
             current_time: videoPlayer.currentTime,
-            is_playing: false
+            is_playing: 0
         },
         id: 5
     }));
