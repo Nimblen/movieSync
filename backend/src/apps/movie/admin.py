@@ -15,8 +15,8 @@ class MovieImagesInline(admin.TabularInline):
 
 class MovieAdmin(admin.ModelAdmin):
     inlines = [MovieImagesInline]
-    list_display = ['title', 'category', 'thumbnail']
-    list_filter = ['category']
+    list_display = ['title', 'thumbnail']
+    list_filter = ['categories']
     search_fields = ['title']
 
     def thumbnail(self, obj):

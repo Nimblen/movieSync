@@ -66,3 +66,8 @@ class RedisRepository(RoomRepositoryInterface):
     def delete_key(key: str) -> None:
         '''Delete key'''
         redis_client.delete(key)
+
+    @staticmethod
+    def get_key_type(key: str) -> str:
+        '''Get key type'''
+        return redis_client.type(key)

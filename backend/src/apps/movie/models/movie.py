@@ -15,7 +15,7 @@ class Movie(TimeStampedModel):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     hls_playlist = models.URLField(blank=True, null=True)
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True)
+    categories = models.ManyToManyField(Category, related_name="movies", blank=True, null=True)
 
     def __str__(self):
         return self.title

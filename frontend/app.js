@@ -1,161 +1,177 @@
-// Установите WebSocket соединение
+const hlsPlaylistUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 const roomId = "123"; // Пример ID комнаты
-let socket = new WebSocket(`ws://localhost:8000/ws/movie/${roomId}/`);
+const socketUrl = `ws://localhost:8000/ws/movie/${roomId}/`;
 
-// Элементы DOM
+// DOM элементы
 const videoPlayer = document.getElementById("video-player");
+const qualitySelector = document.getElementById("quality-selector");
 const chatContainer = document.getElementById("chat-container");
 const chatInput = document.getElementById("chat-input");
 const sendButton = document.getElementById("send-button");
+
+let hls;
+let socket;
+
+// Инициализация HLS плеера
+function initializeVideoPlayer() {
+    if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(hlsPlaylistUrl);
+        hls.attachMedia(videoPlayer);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log("HLS playlist loaded");
+            populateQualitySelector();
+        });
+    } else if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
+        videoPlayer.src = hlsPlaylistUrl;
+    } else {
+        console.error("HLS is not supported in this browser.");
+    }
+}
+
+// Заполняем селектор качества
+function populateQualitySelector() {
+    const levels = hls.levels || []; // Проверяем, что уровни качества существуют
+    levels.forEach((level, index) => {
+        const option = document.createElement("option");
+        option.value = index;
+        option.textContent = `${level.height}p`;
+        qualitySelector.appendChild(option);
+    });
+
+    // Событие изменения качества
+    qualitySelector.addEventListener("change", () => {
+        const selectedValue = qualitySelector.value;
+        if (selectedValue === "auto") {
+            hls.currentLevel = -1; // Автоматический выбор качества
+        } else {
+            hls.currentLevel = parseInt(selectedValue, 10); // Устанавливаем выбранный уровень
+        }
+    });
+}
 
 // Добавление сообщения в чат
 function addChatMessage(user, message) {
     const messageElement = document.createElement("div");
     messageElement.textContent = `${user}: ${message}`;
     chatContainer.appendChild(messageElement);
-    chatContainer.scrollTop = chatContainer.scrollHeight; // Прокручиваем вниз
+    chatContainer.scrollTop = chatContainer.scrollHeight; // Прокрутка вниз
 }
 
-// Обработка соединения WebSocket
-socket.onopen = () => {
-    console.log("WebSocket connection opened");
+// Установка состояния плеера
+function setPlayerState(state) {
+    if (state) {
+        videoPlayer.currentTime = parseFloat(state.current_time || 0);
+        if (state.is_playing) {
+            videoPlayer.play();
+        } else {
+            videoPlayer.pause();
+        }
+    }
+}
 
-    socket.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "get_initial_state",
-        params: { room_id: roomId },
-        id: 1
-    }));
+// Инициализация WebSocket
+function initializeWebSocket() {
+    socket = new WebSocket(socketUrl);
 
-    socket.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "get_sync_state",
-        params: { room_id: roomId },
-        id: 2
-    }));
-};
+    socket.onopen = () => {
+        console.log("WebSocket connection opened");
+        // Запрос начального состояния комнаты
+        socket.send(
+            JSON.stringify({
+                jsonrpc: "2.0",
+                method: "get_initial_state",
+                params: { room_id: roomId },
+                id: 1,
+            })
+        );
+    };
 
-// Обработка входящих сообщений
-socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log("Message from server:", data);
+    socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("Message from server:", data);
 
-    // Проверка формата JSON-RPC 2.0
-    if (data.jsonrpc === "2.0") {
         if (data.result) {
-            const result = data.result;
+            if (data.result.type === "initial_state") {
+                const { state, messages } = data.result;
 
-            if (result.type === "initial_state") {
-                // Установка начального состояния комнаты
-                const { state, messages } = result;
-                if (state) {
-                    videoPlayer.currentTime = parseFloat(state.current_time || 0);
-                    if (state.is_playing) {
-                        videoPlayer.play();
-                    } else {
-                        videoPlayer.pause();
-                    }
-                }
+                // Устанавливаем состояние плеера
+                setPlayerState(state);
 
-                // Загрузка истории чата
-                messages.forEach((message) => {
-                    const [user, ...messageParts] = message.split(": ");
-                    const messageContent = messageParts.join(": ");
-                    addChatMessage(user, messageContent);
+                // Загружаем историю чата
+                messages.forEach((msg) => {
+                    const [user, ...messageParts] = msg.split(": ");
+                    addChatMessage(user, messageParts.join(": "));
                 });
-            } else if (result.type === "set_sync_state") {
-                // Синхронизация состояния видеоплеера
-                const state = result.state;
-                if (state) {
-                    videoPlayer.currentTime = parseFloat(state.current_time);
-                    if (state.is_playing) {
-                        videoPlayer.play();
-                    } else {
-                        videoPlayer.pause();
-                    }
-                }
-            } else if (result.type === "chat_message") {
-                // Добавление сообщения в чат
-                addChatMessage(result.username || "User", result.message);
+            } else if (data.result.type === "chat_message") {
+                addChatMessage(data.result.username || "User", data.result.message);
+            } else if (data.result.type === "set_sync_state") {
+                setPlayerState(data.result.state);
             }
         } else if (data.error) {
             console.error("Error from server:", data.error);
         }
-    } else {
-        console.error("Invalid JSON-RPC response format:", data);
-    }
-};
+    };
 
-// Обработка ошибок
-socket.onerror = (error) => {
-    console.error("WebSocket error:", error);
-};
+    socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+    };
 
-// Обработка закрытия соединения с повторным подключением
-socket.onclose = () => {
-    console.log("WebSocket connection closed. Reconnecting...");
-    setTimeout(() => {
-        socket = new WebSocket(`ws://localhost:8000/ws/movie/${roomId}/`);
-    }, 3000); // Переподключение через 3 секунды
-};
+    socket.onclose = () => {
+        console.warn("WebSocket connection closed. Reconnecting...");
+        setTimeout(() => initializeWebSocket(), 3000); // Переподключение через 3 секунды
+    };
+}
 
 // Отправка сообщения в чат
 sendButton.addEventListener("click", () => {
     const message = chatInput.value;
     if (message) {
-        socket.send(JSON.stringify({
-            jsonrpc: "2.0",
-            method: "send_chat_message",
-            params: { message: message, room_id: roomId },
-            id: 3
-        }));
+        socket.send(
+            JSON.stringify({
+                jsonrpc: "2.0",
+                method: "send_chat_message",
+                params: { room_id: roomId, message: message },
+                id: 2,
+            })
+        );
         chatInput.value = "";
     }
 });
 
-// Синхронизация состояния при воспроизведении или паузе
+// Синхронизация состояния при воспроизведении
 videoPlayer.addEventListener("play", () => {
-    socket.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "set_sync_state",
-        params: {
-            room_id: roomId,
-            movie_id: "5",
-            current_time: videoPlayer.currentTime,
-            is_playing: 1
-        },
-        id: 4
-    }));
-});
-
-videoPlayer.addEventListener("pause", () => {
-    socket.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "set_sync_state",
-        params: {
-            room_id: roomId,
-            movie_id: "5",
-            current_time: videoPlayer.currentTime,
-            is_playing: 0
-        },
-        id: 5
-    }));
-});
-
-
-let seekTimeout;
-videoPlayer.addEventListener("seeked", () => {
-    clearTimeout(seekTimeout);
-    seekTimeout = setTimeout(() => {
-        socket.send(JSON.stringify({
+    socket.send(
+        JSON.stringify({
             jsonrpc: "2.0",
             method: "set_sync_state",
             params: {
                 room_id: roomId,
                 current_time: videoPlayer.currentTime,
-                is_playing: !videoPlayer.paused
+                is_playing: true,
             },
-            id: 6
-        }));
-    }, 5000); 
+            id: 3,
+        })
+    );
 });
+
+// Синхронизация состояния при паузе
+videoPlayer.addEventListener("pause", () => {
+    socket.send(
+        JSON.stringify({
+            jsonrpc: "2.0",
+            method: "set_sync_state",
+            params: {
+                room_id: roomId,
+                current_time: videoPlayer.currentTime,
+                is_playing: false,
+            },
+            id: 4,
+        })
+    );
+});
+
+// Запуск приложения
+initializeVideoPlayer();
+initializeWebSocket();

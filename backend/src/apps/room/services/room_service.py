@@ -19,7 +19,12 @@ class RoomService:
 
     def get_rooms(self):
         keys = self.repository.get_hash_keys("room:*")
-        rooms = [self.repository.get_hash(key) for key in keys]
+        rooms = []
+
+        for key in keys:
+            if self.repository.get_key_type(key) == 'hash':
+                rooms.append(self.repository.get_hash(key))
+
         return rooms
 
     def delete_room(self, room_id):
