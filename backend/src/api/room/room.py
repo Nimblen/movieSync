@@ -17,7 +17,9 @@ class RoomViewSet(ViewSet):
         return Response({"status": "success", "data": serializer.data}, status=200)
 
     def create(self, request):
-        serializer = self.serializer_class(data=request.data)
+        data = request.data
+        data["room_owner"] = request.user.id or 1
+        serializer = self.serializer_class(data=data)
         serializer.is_valid(raise_exception=True)
         try:
             room_data = self.service.create_room(serializer.validated_data)

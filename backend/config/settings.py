@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-&a$z88#)26yqu@8y61x=lb&-mewrn&j7shk=_dn@xyi*%7)d7(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 
 # Application definition
@@ -44,6 +44,7 @@ THIRD_PARTY_APPS = [
     "rest_framework",
     "django_filters",
     "drf_spectacular",
+    "corsheaders"
 ]
 
 LOCAL_APPS = [
@@ -56,6 +57,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -112,6 +114,16 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",  
+    "http://127.0.0.1:8000",
+
+]
 
 
 # Password validation

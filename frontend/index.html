@@ -3,76 +3,239 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Room</title>
+    <title>Movie Together</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
             margin: 0;
             padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #121212;
+            color: #ffffff;
         }
-        video {
-            width: 80%;
-            max-width: 600px;
-            margin: 20px 0;
+
+        #main-container {
+            display: flex;
+            flex: 1;
         }
+
+        #room-list {
+            width: 20%;
+            background-color: #1e1e1e;
+            border-right: 1px solid #333;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        #room-list h2 {
+            margin: 0 0 10px;
+        }
+
+        #room-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #room-list li {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: #fff;
+        }
+
+        #room-list li:hover {
+            background-color: #333;
+        }
+
+        #create-room-form {
+            display: flex;
+            flex-direction: column;
+            margin-top: 10px;
+        }
+
+        #create-room-form input, #create-room-form select, #create-room-form button {
+            margin-bottom: 5px;
+            padding: 8px;
+            border: 1px solid #333;
+            background-color: #1e1e1e;
+            color: #fff;
+            border-radius: 5px;
+        }
+
+        #create-room-form button {
+            background-color: #28a745;
+            cursor: pointer;
+        }
+
+        #create-room-form button:hover {
+            background-color: #218838;
+        }
+
+        #content {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #video-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            margin-bottom: 10px;
+        }
+
+        #video-container video {
+            width: 100%;
+            max-width: 100%;
+        }
+
         #quality-selector {
-            margin: 10px 0;
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background-color: #1e1e1e;
+            color: #fff;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 5px;
+            cursor: pointer;
         }
+
+        #chat-and-users {
+            display: flex;
+            flex: 1;
+        }
+
         #chat-container {
-            width: 80%;
-            max-width: 600px;
-            margin: 10px auto;
-            border: 1px solid #ccc;
+            flex: 2;
+            margin-right: 10px;
+            border: 1px solid #333;
             border-radius: 5px;
             padding: 10px;
-            height: 300px;
-            overflow-y: scroll;
+            height: calc(100% - 40px);
+            overflow-y: auto;
+            background-color: rgba(30, 30, 30, 0.9);
         }
+
         #chat-input-container {
-            width: 80%;
-            max-width: 600px;
-            margin: 0 auto;
             display: flex;
+            margin-top: 10px;
         }
+
         #chat-input {
             flex: 1;
             padding: 10px;
-            border: 1px solid #ccc;
+            border: 1px solid #333;
             border-radius: 5px 0 0 5px;
+            background-color: #1e1e1e;
+            color: #fff;
         }
+
         #send-button {
             padding: 10px;
-            border: 1px solid #ccc;
+            border: 1px solid #333;
             border-left: none;
             border-radius: 0 5px 5px 0;
             background-color: #007bff;
             color: white;
             cursor: pointer;
         }
+
         #send-button:hover {
             background-color: #0056b3;
+        }
+
+        #user-list {
+            flex: 1;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 10px;
+            height: calc(100% - 40px);
+            overflow-y: auto;
+            background-color: rgba(20, 20, 20, 0.9);
+        }
+
+        #user-list h3 {
+            margin: 0 0 10px;
+        }
+
+        #user-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        #user-list li {
+            padding: 5px;
+            border-bottom: 1px solid #333;
+            color: #fff;
+        }
+
+        #user-list li:last-child {
+            border-bottom: none;
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-    <h1>Movie Sync Room</h1>
+    <h1 style="text-align: center; margin: 10px 0;">Movie Together</h1>
 
-    <!-- Видеоплеер -->
-    <video id="video-player" controls></video>
-    <select id="quality-selector">
-        <option value="auto">Auto</option>
-    </select>
+    <div id="main-container">
+        <!-- Список комнат -->
+        <div id="room-list">
+            <h2>Rooms</h2>
+            <ul id="room-list-items">
+                <!-- Dynamic room list will be appended here -->
+            </ul>
+            <!-- Form for creating rooms -->
+            <form id="create-room-form">
+                <input type="text" id="room-name" placeholder="Room name" required>
+                <input type="text" id="movie-id" placeholder="Movie ID" required>
+                <select id="room-type">
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+                <input type="number" id="max-users" placeholder="Max Users" min="1" value="5" required>
+                <button type="submit">Create Room</button>
+            </form>
+        </div>
 
-    <!-- Чат -->
-    <div id="chat-container"></div>
-    <div id="chat-input-container">
-        <input type="text" id="chat-input" placeholder="Type a message...">
-        <button id="send-button">Send</button>
+        <!-- Основное содержимое -->
+        <div id="content">
+            <div id="video-container">
+                <!-- Видеоплеер -->
+                <video id="video-player" controls></video>
+                <select id="quality-selector">
+                    <option value="auto">Auto</option>
+                </select>
+            </div>
+
+            <!-- Чат и список пользователей -->
+            <div id="chat-and-users">
+                <!-- Чат -->
+                <div id="chat-container"></div>
+
+                <!-- Список пользователей -->
+                <div id="user-list">
+                    <h3>Participants</h3>
+                    <ul id="user-list-items">
+                        <!-- Dynamic user list will be appended here -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Ввод сообщения -->
+            <div id="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Type a message...">
+                <button id="send-button">Send</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Подключение JavaScript -->
     <script src="app.js"></script>
 </body>
 </html>
