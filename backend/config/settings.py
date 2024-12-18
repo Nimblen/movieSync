@@ -98,6 +98,10 @@ CHANNEL_LAYERS = {
 }
 
 
+CELERY_BROKER_URL = 'redis://localhost:6379/3'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
 REDIS_CONFIG = {
     "host": "127.0.0.1",
     "port": 6379,

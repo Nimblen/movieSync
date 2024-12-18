@@ -1,6 +1,6 @@
 from django.utils.html import format_html
 from django.contrib import admin
-from src.apps.movie.models.movie import Movie
+from src.apps.movie.models.movie import Movie, MovieFile
 from src.apps.gallery.models.movie import MovieImages
 # Register your models here.
 
@@ -27,3 +27,13 @@ class MovieAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Movie, MovieAdmin)
+
+
+
+
+class MovieFileAdmin(admin.ModelAdmin):
+    list_display = ['title', 'is_converted']
+    list_filter = ['is_converted']
+    search_fields = ['title']
+
+admin.site.register(MovieFile, MovieFileAdmin)

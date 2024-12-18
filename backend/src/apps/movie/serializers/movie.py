@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from src.apps.movie.models import Movie, Category
+from src.apps.movie.models import Movie, Category, MovieFile
 from src.apps.gallery.models import MovieImages
 
 
@@ -60,3 +60,10 @@ class MovieSerializer(serializers.ModelSerializer):
         ])
 
         return instance
+    
+
+
+class MovieFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MovieFile
+        fields = ('id', 'title', 'video_file', 'hls_playlist', 'is_converted')
