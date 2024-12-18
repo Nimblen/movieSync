@@ -44,10 +44,10 @@ class RoomStateService:
         return state  # Возвращаем состояние как словарь
 
     def set_room_state(self, room_id, data):
-        play = data.get("is_playing")
-        if play:
-            data["is_playing"] = 1
-        else:
-            data["is_playing"] = 0
-        self.repository.set_hash(f"room:{room_id}", data)
-        return data
+        current_state = self.get_room_state(room_id)
+        new_state = data.copy()
+        new_state["is_playing"] = 1 if data.get("is_playing") else 0
+        if current_state == new_state:
+            return {"success": False, "message": "State has not changed"}
+        self.repository.set_hash(f"room:{room_id}", new_state)
+        return {"success": True, "state": new_state}

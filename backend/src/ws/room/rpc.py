@@ -22,12 +22,18 @@ def get_initial_state(params):
 @rpc_method
 def set_sync_state(params):
     """
-    set state
+    Set state only if it has changed
     """
-    RoomStateManager.set_room_state(
-        params["room_id"], params
-    )
-    return {"success": True, "state": params, "type": "set_sync_state"}
+    result = RoomStateManager.set_room_state(params["room_id"], params)
+
+    if not result["success"]:
+        return {
+            "success": False,
+            "message": result["message"],
+            "type": "set_sync_state"
+        }
+
+    return {"success": True, "state": result["state"], "type": "set_sync_state"}
 
 
 @rpc_method
