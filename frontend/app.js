@@ -151,6 +151,10 @@ function handleWebSocketMessage(data) {
             case "chat_message":
                 addChatMessage(data.result.username || "User", data.result.message);
                 break;
+            case "update_users":
+                renderUserList(data.result.users);
+                break;
+                
         }
     }
 }
@@ -158,16 +162,31 @@ function handleWebSocketMessage(data) {
 // --- Update Chat Messages ---
 function updateChatMessages(messages) {
     chatContainer.innerHTML = "";
-    messages.forEach((msg) => addChatMessage(msg.username, msg.message));
+    messages.forEach((msg) => {
+        const username = Object.keys(msg)[0]; // Extract username
+        const message = msg[username]; // Extract message
+        addChatMessage(username, message);
+    });
 }
 
 // --- Add Chat Message ---
 function addChatMessage(user, message) {
+    const displayName = user || "Anonymous"; // Fallback for username
     const messageElement = document.createElement("div");
-    messageElement.textContent = `${user}: ${message}`;
+    messageElement.textContent = `${displayName}: ${message || "No message"}`; // Fallback for message
     chatContainer.appendChild(messageElement);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
+
+function renderUserList(users) {
+    userListItems.innerHTML = ""; // Очистка списка
+    users.forEach((user) => {
+        const userElement = document.createElement("li");
+        userElement.textContent = user.username || "Anonymous";
+        userListItems.appendChild(userElement);
+    });
+}
+
 
 // --- Set Video Player State ---
 function setPlayerState(state) {
