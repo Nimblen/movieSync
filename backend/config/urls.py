@@ -25,7 +25,7 @@ from src.api import urlpatterns
 API_BASE = "api/"
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(API_BASE + "admin/", admin.site.urls),
     path(API_BASE, include(urlpatterns)),
     path(API_BASE + "schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
