@@ -1,5 +1,5 @@
-const apiBaseUrl = "http://localhost:8000/api"; // Backend API Base URL
-const socketBaseUrl = "ws://localhost:8000/ws/movie/"; // WebSocket Base URL
+const apiBaseUrl = "http://147.45.154.198/api"; // Backend API Base URL
+const socketBaseUrl = "ws://147.45.154.198/ws/movie/"; // WebSocket Base URL
 
 // DOM Elements
 const roomListItems = document.getElementById("room-list-items");
@@ -13,6 +13,37 @@ const createRoomForm = document.getElementById("create-room-form");
 
 let hls, socket, currentRoomId = null;
 let lastSyncState = { current_time: 0, is_playing: false }; // Last sent state
+function getCSRFToken() {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith("csrftoken=")) {
+            return cookie.split("=")[1];
+        }
+    }
+    return "";
+}
+
+
+// Функция debounce
+function debounce(func, delay) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => func.apply(this, args), delay);
+    };
+}
+
+// Обновляем syncPlayerState с debounce
+const debouncedSyncPlayerState = debounce(syncPlayerState, 300);
+
+
+
+
+
+
+
+
 
 // --- Fetch Rooms from API ---
 async function fetchRooms() {
@@ -175,7 +206,7 @@ sendButton.addEventListener("click", () => {
         chatInput.value = "";
     }
 });
-
+const csrfToken = getCSRFToken();
 // --- Create Room ---
 createRoomForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -188,7 +219,7 @@ createRoomForm.addEventListener("submit", async (event) => {
     try {
         const response = await fetch(`${apiBaseUrl}/room/`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json",  "X-CSRFToken": csrfToken},
             body: JSON.stringify({
                 room_id: roomName,
                 movie_id: movieId,
