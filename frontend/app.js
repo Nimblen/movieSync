@@ -13,6 +13,8 @@ const createRoomForm = document.getElementById("create-room-form");
 
 let hls, socket, currentRoomId = null;
 let lastSyncState = { current_time: 0, is_playing: false }; // Last sent state
+let isSyncing = false; // Prevent loops during sync
+
 function getCSRFToken() {
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
@@ -24,8 +26,7 @@ function getCSRFToken() {
     return "";
 }
 
-
-// Функция debounce
+// Function debounce
 function debounce(func, delay) {
     let timer;
     return (...args) => {
@@ -34,16 +35,8 @@ function debounce(func, delay) {
     };
 }
 
-// Обновляем syncPlayerState с debounce
+// Debounced syncPlayerState
 const debouncedSyncPlayerState = debounce(syncPlayerState, 300);
-
-
-
-
-
-
-
-
 
 // --- Fetch Rooms from API ---
 async function fetchRooms() {
@@ -182,6 +175,8 @@ function setPlayerState(state) {
         const currentTime = parseFloat(state.current_time || 0);
         const isPlaying = state.is_playing;
 
+        isSyncing = true; // Prevent loops
+
         if (Math.abs(videoPlayer.currentTime - currentTime) > 1) {
             videoPlayer.currentTime = currentTime;
         }
@@ -191,6 +186,8 @@ function setPlayerState(state) {
         } else if (!isPlaying && !videoPlayer.paused) {
             videoPlayer.pause();
         }
+
+        setTimeout(() => isSyncing = false, 500); // Allow sync after delay
     }
 }
 
@@ -242,15 +239,17 @@ createRoomForm.addEventListener("submit", async (event) => {
 });
 
 // --- Video Events for Immediate Sync ---
-videoPlayer.addEventListener("play", () => syncPlayerState(true));
-videoPlayer.addEventListener("pause", () => syncPlayerState(false));
-videoPlayer.addEventListener("seeked", () => syncPlayerState(!videoPlayer.paused));
+videoPlayer.addEventListener("play", () => debouncedSyncPlayerState(true));
+videoPlayer.addEventListener("pause", () => debouncedSyncPlayerState(false));
+videoPlayer.addEventListener("seeked", () => debouncedSyncPlayerState(!videoPlayer.paused));
 
 // --- Synchronize State Immediately ---
 function syncPlayerState(isPlaying) {
+    if (isSyncing || !currentRoomId) return; // Skip if syncing or room not set
+
     const currentTime = videoPlayer.currentTime;
     if (
-        Math.abs(currentTime - lastSyncState.current_time) > 0.1 || // Drift > 0.1 seconds
+        Math.abs(currentTime - lastSyncState.current_time) > 0.5 || // Drift > 0.5 seconds
         isPlaying !== lastSyncState.is_playing
     ) {
         sendWebSocketMessage("set_sync_state", {

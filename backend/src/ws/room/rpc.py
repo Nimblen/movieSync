@@ -22,20 +22,20 @@ def get_initial_state(params):
 @rpc_method
 def set_sync_state(params):
     """
-    set state 
+    Set the synchronization state for the room.
     """
     current_state = RoomStateManager.get_room_state(params["room_id"])
 
-    # 2 seconds drift tolerance 
+    current_time = float(current_state.get("current_time", 0))
+    new_time = float(params.get("current_time", 0))
+
     if (
-        abs(float(current_state.get("current_time", 0)) - float(params["current_time"])) > 2
-        or current_state.get("is_playing") != params["is_playing"]
+        abs(current_time - new_time) > 0.5  
+        or current_state.get("is_playing") != params["is_playing"] 
     ):
         RoomStateManager.set_room_state(params["room_id"], params)
         return {"success": True, "state": params, "type": "set_sync_state"}
-    # if state is not changed return current state
     return {"success": True, "state": current_state, "type": "set_sync_state"}
-
 
 
 
@@ -44,11 +44,11 @@ def set_sync_state(params):
 def get_sync_state(params):
     """
     get state
-    """
-    RoomStateManager.get_room_state(params["room_id"])
+    """ 
+    state = RoomStateManager.get_room_state(params["room_id"])
     return {
         "success": True,
-        "state": RoomStateManager.get_room_state(params["room_id"]),
+        "state": state,
         "type": "get_sync_state",
     }
 
