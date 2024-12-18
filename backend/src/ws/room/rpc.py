@@ -22,13 +22,19 @@ def get_initial_state(params):
 @rpc_method
 def set_sync_state(params):
     """
-    set state
+    set state 
     """
-    RoomStateManager.set_room_state(
-        params["room_id"], params
-    )
-    return {"success": True, "state": params, "type": "set_sync_state"}
+    current_state = RoomStateManager.get_room_state(params["room_id"])
 
+    # 2 seconds drift tolerance 
+    if (
+        abs(float(current_state.get("current_time", 0)) - float(params["current_time"])) > 2
+        or current_state.get("is_playing") != params["is_playing"]
+    ):
+        RoomStateManager.set_room_state(params["room_id"], params)
+        return {"success": True, "state": params, "type": "set_sync_state"}
+    # if state is not changed return current state
+    return {"success": True, "state": current_state, "type": "set_sync_state"}
 
 @rpc_method
 def get_sync_state(params):
