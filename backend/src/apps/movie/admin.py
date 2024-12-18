@@ -20,8 +20,10 @@ class MovieAdmin(admin.ModelAdmin):
     search_fields = ['title']
 
     def thumbnail(self, obj):
-        return format_html('<img src="{}" width="40" />'.format(obj.get_first_image().image.url))
-    
+        first_image = obj.get_first_image()
+        if first_image and first_image.image:  
+            return format_html('<img src="{}" width="40" />'.format(first_image.image.url))
+        return "No Image"
 
 
 admin.site.register(Movie, MovieAdmin)

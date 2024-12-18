@@ -23,4 +23,4 @@ class Movie(TimeStampedModel):
 
 
     def get_first_image(self):
-        return self.images.first()
+        return self.images.first() if self.images.exists() else None
