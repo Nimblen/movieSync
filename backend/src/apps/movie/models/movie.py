@@ -37,13 +37,5 @@ class MovieFile(TimeStampedModel):
     hls_playlist = models.URLField(blank=True, null=True)
     is_converted = models.BooleanField(default=False)  
 
-    
-    def generate_hls(self):
-        input_path = self.video_file.path
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'hls', str(self.id))
-        hls_path = convert_to_hls(input_path, output_dir)
-        
-        self.hls_playlist = os.path.relpath(hls_path, settings.MEDIA_ROOT)
-        self.is_converted = True
-        self.save()
-
+    def __str__(self):
+        return self.title
