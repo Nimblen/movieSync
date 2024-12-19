@@ -23,12 +23,12 @@ class MovieStateConsumer(AsyncJsonWebsocketConsumer):
             await self.close()
             return
 
-        if not room_service.room_exists(self.room_name):
+        if not await room_service.room_exists_async(self.room_name):
             logger.warning(f"Room {self.room_name} does not exist. Closing connection.")
             await self.close()
             return
 
-        user_service.add_user_to_room(self.room_name, self.username)
+        await user_service.add_user_to_room_async(self.room_name, self.username)
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
@@ -37,14 +37,14 @@ class MovieStateConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if hasattr(self, "room_name") and hasattr(self, "username"):
-            user_service.remove_user_from_room(self.room_name, self.username)
+            await user_service.remove_user_from_room_async(self.room_name, self.username)
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
             logger.info(f"User {self.username} disconnected from room {self.room_name}.")
 
     async def receive_json(self, content):
         try:
             content["params"]["username"] = self.username or "noName"
-            response = handle_rpc_request(content)
+            response = await handle_rpc_request(content)
 
             if "result" in response:
                 if response["result"].get("type") in ["set_sync_state", "chat_message"]:

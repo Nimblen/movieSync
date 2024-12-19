@@ -4,7 +4,7 @@ from src.ws.utils.rpc_registry import RPC_METHODS
 
 
 
-def handle_rpc_request(data):
+async def handle_rpc_request(data):
     try:
         method = data.get("method")
         params = data.get("params", {})
@@ -17,7 +17,7 @@ def handle_rpc_request(data):
                 "id": rpc_id,
             }
 
-        result = RPC_METHODS[method](params)
+        result = await RPC_METHODS[method](params)
         return {"jsonrpc": "2.0", "result": result, "id": rpc_id}
 
     except json.JSONDecodeError:
