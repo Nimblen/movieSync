@@ -16,12 +16,17 @@ def convert_to_hls(input_file_path, output_dir):
     command = [
         'ffmpeg',
         '-i', input_file_path,             
-        '-codec:', 'copy',                 
+        '-codec:v', 'h264',                
+        '-codec:a', 'aac',                
         '-start_number', '0',
         '-hls_time', '10',
         '-hls_list_size', '0',
-        '-f', 'hls',
+        '-f', 'hls',                       
         hls_output_path
     ]
-    subprocess.run(command, check=True)
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        print(f"FFmpeg error: {e.stderr}")
+        raise
     return hls_output_path

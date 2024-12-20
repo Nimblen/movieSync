@@ -17,3 +17,4 @@ def convert_movie_task(movie_id):
         movie.save()
     except Exception as e:
         print(f"Error converting movie: {e}")
+        raise
