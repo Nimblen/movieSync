@@ -1,15 +1,14 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import logging
-from src.apps.room.services import RoomService, UserService
-from src.apps.core.repositories.redis_repository import RedisRepository
 from src.ws.room.handlers import handle_rpc_request
-from src.ws.room.rpc import *
+from src.apps.core.utils.rpc_responses import make_rpc_error
+from src.apps.room.services import *
+from src.apps.room.rpc import *
+
 
 logger = logging.getLogger(__name__)
 
-repository = RedisRepository()
-room_service = RoomService(repository)
-user_service = UserService(repository)
+
 
 
 class MovieStateConsumer(AsyncJsonWebsocketConsumer):
@@ -23,12 +22,12 @@ class MovieStateConsumer(AsyncJsonWebsocketConsumer):
             await self.close()
             return
 
-        if not await room_service.room_exists_async(self.room_name):
+        if not await RoomManager.room_exists_async(self.room_name):
             logger.warning(f"Room {self.room_name} does not exist. Closing connection.")
             await self.close()
             return
 
-        await user_service.add_user_to_room_async(self.room_name, self.username)
+        await RoomUserManager.add_user_to_room_async(self.room_name, self.username)
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
@@ -37,7 +36,7 @@ class MovieStateConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if hasattr(self, "room_name") and hasattr(self, "username"):
-            await user_service.remove_user_from_room_async(self.room_name, self.username)
+            await RoomUserManager.remove_user_from_room_async(self.room_name, self.username)
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
             logger.info(f"User {self.username} disconnected from room {self.room_name}.")
 
@@ -58,17 +57,7 @@ class MovieStateConsumer(AsyncJsonWebsocketConsumer):
                 await self.send_json(response)
         except Exception as e:
             logger.exception(f"Error processing message: {content}. Exception: {e}")
-            await self.send_json(
-                {
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32603,
-                        "message": "Internal error",
-                        "data": str(e),
-                    },
-                    "id": content.get("id"),
-                }
-            )
+            await self.send_json(make_rpc_error(500, str(e), content["id"]))
 
     async def broadcast_message(self, event):
         await self.send_json(event["response"])

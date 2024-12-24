@@ -1,5 +1,5 @@
 import json
-from src.ws.utils.rpc_registry import RPC_METHODS
+from src.apps.core.utils.rpc_registry import RPC_METHODS
 
 
 
