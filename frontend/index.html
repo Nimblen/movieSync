@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Movie Together</title>
     <style>
         body {
@@ -55,7 +55,9 @@
             margin-top: 10px;
         }
 
-        #create-room-form input, #create-room-form select, #create-room-form button {
+        #create-room-form input,
+        #create-room-form select,
+        #create-room-form button {
             margin-bottom: 5px;
             padding: 8px;
             border: 1px solid #333;
@@ -179,63 +181,63 @@
             border-bottom: none;
         }
     </style>
+    <!-- HLS.js для воспроизведения HLS-потоков -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
     <h1 style="text-align: center; margin: 10px 0;">Movie Together</h1>
 
     <div id="main-container">
-        <!-- Список комнат -->
+        <!-- Список комнат (слева) -->
         <div id="room-list">
             <h2>Rooms</h2>
-            <ul id="room-list-items">
-                <!-- Dynamic room list will be appended here -->
-            </ul>
-            <!-- Form for creating rooms -->
+            <ul id="room-list-items"></ul>
+            <!-- Форма создания новой комнаты -->
             <form id="create-room-form">
-                <input type="text" id="room-name" placeholder="Room name" required>
-                <input type="text" id="movie-id" placeholder="Movie ID" required>
+                <input type="text" id="room-name" placeholder="Room name" required />
+                <input type="text" id="movie-id" placeholder="Movie ID" required />
                 <select id="room-type">
                     <option value="public">Public</option>
                     <option value="private">Private</option>
                 </select>
-                <input type="number" id="max-users" placeholder="Max Users" min="1" value="5" required>
+                <input
+                    type="number"
+                    id="max-users"
+                    placeholder="Max Users"
+                    min="1"
+                    value="5"
+                    required
+                />
                 <button type="submit">Create Room</button>
             </form>
         </div>
 
-        <!-- Основное содержимое -->
+        <!-- Основное содержимое (видео + чат + пользователи) -->
         <div id="content">
             <div id="video-container">
-                <!-- Видеоплеер -->
                 <video id="video-player" controls></video>
                 <select id="quality-selector">
                     <option value="auto">Auto</option>
                 </select>
             </div>
-
-            <!-- Чат и список пользователей -->
             <div id="chat-and-users">
                 <!-- Чат -->
                 <div id="chat-container"></div>
-
                 <!-- Список пользователей -->
                 <div id="user-list">
                     <h3>Participants</h3>
-                    <ul id="user-list-items">
-                        <!-- Dynamic user list will be appended here -->
-                    </ul>
+                    <ul id="user-list-items"></ul>
                 </div>
             </div>
-
-            <!-- Ввод сообщения -->
+            <!-- Поле ввода сообщения и кнопка отправки -->
             <div id="chat-input-container">
-                <input type="text" id="chat-input" placeholder="Type a message...">
+                <input type="text" id="chat-input" placeholder="Type a message..." />
                 <button id="send-button">Send</button>
             </div>
         </div>
     </div>
 
+    <!-- Подключаем основной JS-файл с логикой приложения -->
     <script src="app.js"></script>
 </body>
 </html>
