@@ -1,8 +1,6 @@
-from src.ws.room import movie_websocket_urlpatterns
+from django.urls import re_path
+from .consumers import MainConsumer
 
-
-
-
-
-
-websocket_urlpatterns = movie_websocket_urlpatterns
+websocket_urlpatterns = [
+    re_path(r'^ws/app(?:/(?P<room_name>[^/]+))?$', MainConsumer.as_asgi()),
+]

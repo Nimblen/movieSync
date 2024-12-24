@@ -7,12 +7,12 @@ from src.apps.room.services import *
 
 @rpc_method
 async def get_initial_state(params):
-    return make_rpc_response( {
+    return {
         "state": await RoomStateManager.get_room_state_async(params["room_id"]),
         "users": list(await RoomUserManager.get_users_in_room_async(params["room_id"])),
         "messages": await RoomMessageManager.get_messages_async(params["room_id"]),
         "type": "initial_state",
-    }, params.get("id", 1))
+    }
 
 
 @rpc_method
@@ -30,8 +30,8 @@ async def set_sync_state(params):
         or current_state.get("is_playing") != params["is_playing"] 
     ):
         await RoomStateManager.set_room_state_async(params["room_id"], params)
-        return make_rpc_response(params, params.get("id", 1))
-    return make_rpc_response(current_state, params.get("id", 1), False)
+        return params
+    return current_state
 
 
 
@@ -41,36 +41,34 @@ async def get_sync_state(params):
     """
     get state
     """ 
-    state = await RoomStateManager.get_room_state_async(params["room_id"])
-    return make_rpc_response(state, params.get("id", 1))
+    return await RoomStateManager.get_room_state_async(params["room_id"])
 
 
 @rpc_method
 async def create_room(params):
     '''
     Create a new room.'''
-
     serializer = RoomSerializer(data=params)
     if not serializer.is_valid():
         return make_rpc_error(400, serializer.errors, params.get("id", 1))
     await RoomManager.create_room_async(params)
-    return make_rpc_response(params, params.get("id", 1))
+    return params
 
 
 @rpc_method
 async def delete_room(params):
     try:
         await RoomManager.delete_room_async(params["room_id"])
-        return make_rpc_response(params, params.get("id", 1))
+        return params
     except Exception as e:
         return make_rpc_error(400, str(e), params.get("id", 1))
     
 
 @rpc_method
 async def get_rooms(params):
-    return make_rpc_response(RoomManager.get_rooms(), params.get("id", 1))
+    return await RoomManager.get_rooms_async()
 
 
 @rpc_method
 async def get_room(params):
-    return make_rpc_response(RoomManager.get_room(params["room_id"]), params.get("id", 1))
+    return await RoomManager.get_room_async(params["room_id"])
