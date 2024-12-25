@@ -13,4 +13,6 @@ class RoomSerializer(serializers.Serializer):
     room_owner = serializers.CharField(max_length=255)
     room_type = serializers.ChoiceField(choices=RoomTypes.ROOM_TYPE_CHOICES)
     max_users = serializers.IntegerField(default=5, min_value=1)
+    room_password = serializers.CharField(max_length=255, required=False)
+
 
