@@ -14,9 +14,10 @@ services:
     container_name: movie_app
     build:
       context: ./backend
-    command: ./start.sh
+    command: /start.sh
     depends_on:
       - db
+      - redis
     volumes:
       - ./backend:/app
       - static_data:/app/static
@@ -34,22 +35,46 @@ services:
     image: postgres:16-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./backend/.envs/.env.db
     networks:
       - my_network
 
   nginx:
-    image: nginx:1.26.1-alpine
+    image: nginx:stable
     container_name: movie_nginx
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/correct_permissions.sh:/correct_permissions.sh
       - static_data:/usr/share/nginx/html/static
       - media_data:/usr/share/nginx/html/media
-    command: ["sh", "/correct_permissions.sh"]
     ports:
       - 80:80
     networks:
       - my_network
-
     depends_on:
       - app
+
+  celery:
+    container_name: movie_celery
+    build:
+      context: ./backend
+    command: celery --app=config worker --loglevel=info --logfile=logs/celery.log
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.envs/.env
+    depends_on:
+      - db
+      - redis
+      - app
+    networks:
+      - my_network
+
+  redis:
+    container_name: movie_redis
+    image: redis:alpine
+    expose:
+      - 6379
+    networks:
+      - my_network
