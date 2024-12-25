@@ -29,4 +29,4 @@ class UserService(BaseService):
         return await self.repository.get_set_async(self._get_user_key(room_id))
 
     async def clear_users_async(self, room_id):
-        await self.repository.delete_key_async(self._get_user_key(room_id))
+        await self.repository.delete_key_async(self._get_user_key(room_id))        

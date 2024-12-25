@@ -7,6 +7,8 @@ async def handle_rpc_request(data):
         method = data.get("method")
         params = data.get("params", {})
         rpc_id = data.get("id")
+        if method == 'join_room' or method == 'leave_room':
+            params["consumer"] = data["consumer"]
 
         if method not in RPC_METHODS:
             return make_rpc_error(
