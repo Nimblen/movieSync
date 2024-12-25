@@ -1,337 +1,292 @@
-// app.js
-
-const apiBaseUrl = "http://localhost:8000/api"; // Backend API Base URL
-const socketBaseUrl = "ws://localhost:8000/ws/app"; // WebSocket Base URL (без лишнего /)
+// ============ EDIT THIS URL AS NEEDED =============
+const socketBaseUrl = "ws://localhost:8000/ws/app"; 
+// ==================================================
 
 // DOM Elements
-const roomListItems = document.getElementById("room-list-items");
-const videoPlayer = document.getElementById("video-player");
-const chatContainer = document.getElementById("chat-container");
-const chatInput = document.getElementById("chat-input");
-const sendButton = document.getElementById("send-button");
-const userListItems = document.getElementById("user-list-items");
-const qualitySelector = document.getElementById("quality-selector");
-const createRoomForm = document.getElementById("create-room-form");
+const DOM = {
+  loginContainer: document.getElementById("login-container"),
+  loginForm: document.getElementById("login-form"),
+  loginUsernameInput: document.getElementById("login-username"),
+  loginPasswordInput: document.getElementById("login-password"),
+  mainContainer: document.getElementById("main-container"),
+  logoutButton: document.getElementById("logout-button"),
+  roomListItems: document.getElementById("room-list-items"),
+  videoPlayer: document.getElementById("video-player"),
+  chatMessages: document.getElementById("chat-messages"),
+  chatInput: document.getElementById("chat-input"),
+  sendButton: document.getElementById("send-button"),
+  userListItems: document.getElementById("user-list-items"),
+  qualitySelector: document.getElementById("quality-selector"),
+  createRoomForm: document.getElementById("create-room-form"),
+};
 
+// HLS & WebSocket references
 let hls, socket;
 let currentRoomId = null;
-let lastSyncState = { current_time: 0, is_playing: false }; // Последнее отправленное состояние
-let isSyncing = false; // Флаг, чтобы избежать зацикливания при синхронизации
+let lastSyncState = { current_time: 0, is_playing: false };
+let isSyncing = false;
 
-// Получаем CSRF-токен (если используется Django без JWT/Token Auth)
-function getCSRFToken() {
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.startsWith("csrftoken=")) {
-            return cookie.split("=")[1];
-        }
-    }
-    return "";
+// ========== HELPER FUNCTIONS ==========
+const showAlert = (message) => alert(message);
+const toggleVisibility = (element, visible) => {
+  element.style.display = visible ? "flex" : "none";
+};
+
+// ---------- LOGIN/LOGOUT LOGIC ----------
+async function login(username, password) {
+  if (username && password) {
+    localStorage.setItem("loggedInUser", username);
+    return true;
+  }
+  return false;
 }
 
-const csrfToken = getCSRFToken();
+function handleLogout() {
+  localStorage.removeItem("loggedInUser");
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.close();
+  }
+  toggleVisibility(DOM.mainContainer, false);
+  toggleVisibility(DOM.loginContainer, true);
+}
 
-// Дебаунс-функция (для задержки вызова syncPlayerState)
-function debounce(func, delay) {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => func.apply(this, args), delay);
+DOM.loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = DOM.loginUsernameInput.value.trim();
+  const password = DOM.loginPasswordInput.value.trim();
+
+  if (await login(username, password)) {
+    toggleVisibility(DOM.loginContainer, false);
+    toggleVisibility(DOM.mainContainer, true);
+    initializeApp();
+  } else {
+    showAlert("Login failed - please check username/password");
+  }
+});
+
+DOM.logoutButton.addEventListener("click", handleLogout);
+
+// =============== WEBSOCKET & SYNC LOGIC =================
+function initializeWebSocket() {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    console.log("WebSocket already connected.");
+    return;
+  }
+
+  socket = new WebSocket(socketBaseUrl);
+
+  socket.onopen = () => {
+    console.log("WebSocket: connection established.");
+    sendWebSocketMessage("get_rooms", {});
+  };
+
+  socket.onerror = (error) => console.error("WebSocket error:", error);
+
+  socket.onclose = () => console.warn("WebSocket: connection closed.");
+
+  socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
+}
+
+function sendWebSocketMessage(method, params) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.error("WebSocket is not open. Can't send:", method);
+    return;
+  }
+  socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id: Date.now() }));
+}
+
+function handleWebSocketMessage(data) {
+  if (data.result) {
+    const handlers = {
+      get_rooms: () => renderRoomList(data.result.rooms),
+      initial_state: () => {
+        setPlayerState(data.result.state);
+        updateChatMessages(data.result.messages);
+        renderUserList(data.result.users);
+      },
+      set_sync_state: () => setPlayerState(data.result),
+      send_chat_message: () => addChatMessage(data.result.username, data.result.message),
+      update_users: () => renderUserList(data.result.users),
+      create_room: () => sendWebSocketMessage("get_rooms", {}),
+      get_movie: () => {
+        if (data.result.hls_playlist) initializeVideoPlayer(data.result.hls_playlist);
+      },
+      user_joined: () => {
+        addChatMessage("System", `${data.result.username} joined the room.`);
+        renderUserList(data.result.users);
+      },
+      user_left: () => {
+        addChatMessage("System", `${data.result.username} left the room.`);
+        renderUserList(data.result.users);
+      },
     };
+    (handlers[data.result.type] || (() => console.log("Unknown result type:", data.result.type)))();
+  } else if (data.error) {
+    console.error("RPC Error:", data.error);
+  }
 }
 
-// --- Дебаунс-обёртка для syncPlayerState ---
+// Debounce for syncing
+const debounce = (func, delay) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => func(...args), delay);
+  };
+};
 const debouncedSyncPlayerState = debounce(syncPlayerState, 300);
 
-// --- Инициализация WebSocket (вызывается один раз при старте приложения / логине) ---
-function initializeWebSocket() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        console.log("WebSocket уже подключён.");
-        return;
-    }
-
-    // Подключаемся без лишнего слэша в конце
-    socket = new WebSocket(`${socketBaseUrl}`);
-
-    socket.onopen = () => {
-        console.log("WebSocket: соединение установлено.");
-        // При необходимости можно запросить список комнат или что-то ещё через WS
-        // sendWebSocketMessage("get_rooms", {});
-    };
-
-    socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("Получено WebSocket-сообщение:", data);
-        handleWebSocketMessage(data);
-    };
-
-    socket.onerror = (error) => {
-        console.error("WebSocket ошибка:", error);
-    };
-
-    socket.onclose = () => {
-        console.warn("WebSocket: соединение закрыто.");
-    };
-}
-
-// --- Отправка сообщения по WebSocket ---
-function sendWebSocketMessage(method, params) {
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-        console.error("WebSocket не подключён. Невозможно отправить сообщение:", method);
-        return;
-    }
-
-    socket.send(
-        JSON.stringify({
-            jsonrpc: "2.0",
-            method: method,
-            params: params,
-            id: 1, // В реальном приложении можно генерировать уникальные id
-        })
-    );
-}
-
-// --- Обработка входящих сообщений WebSocket ---
-function handleWebSocketMessage(data) {
-    if (data.result) {
-        switch (data.result.type) {
-            case "initial_state":
-                setPlayerState(data.result.state);
-                updateChatMessages(data.result.messages);
-                renderUserList(data.result.users);
-                break;
-            case "set_sync_state":
-                setPlayerState(data.result.state);
-                break;
-            case "chat_message":
-                addChatMessage(data.result.username || "User", data.result.message);
-                break;
-            case "update_users":
-                renderUserList(data.result.users);
-                break;
-            case "create_room": 
-                // Ответ на создание комнаты. Можно обновить список комнат или вывести уведомление.
-                console.log("Комната успешно создана (WS).", data.result);
-                fetchRooms(); 
-                break;
-            default:
-                console.log("Неизвестный тип сообщения:", data.result.type);
-        }
-    } else if (data.error) {
-        console.error("Ошибка RPC:", data.error);
-    }
-}
-
-// --- Синхронизация состояния плеера ---
 function syncPlayerState(isPlaying) {
-    if (isSyncing || !currentRoomId) return;
-
-    const currentTime = videoPlayer.currentTime;
-    if (
-        Math.abs(currentTime - lastSyncState.current_time) > 0.5 ||
-        isPlaying !== lastSyncState.is_playing
-    ) {
-        sendWebSocketMessage("set_sync_state", {
-            room_id: currentRoomId,
-            current_time: currentTime,
-            is_playing: isPlaying,
-        });
-        lastSyncState = { current_time, is_playing };
-    }
+  if (isSyncing || !currentRoomId) return;
+  const currentTime = DOM.videoPlayer.currentTime;
+  if (
+    Math.abs(currentTime - lastSyncState.current_time) > 0.5 ||
+    isPlaying !== lastSyncState.is_playing
+  ) {
+    sendWebSocketMessage("set_sync_state", {
+      room_id: currentRoomId,
+      current_time: currentTime,
+      is_playing: isPlaying,
+    });
+    lastSyncState = { current_time, is_playing };
+  }
 }
 
-// --- Установка состояния плеера, полученного с сервера ---
 function setPlayerState(state) {
-    if (state) {
-        const currentTime = parseFloat(state.current_time || 0);
-        const isPlaying = state.is_playing;
+  if (!state) return;
+  isSyncing = true;
 
-        isSyncing = true; // Чтобы не поймать зацикливание
+  const serverTime = parseFloat(state.current_time || 0);
+  const serverPlaying = state.is_playing;
 
-        if (Math.abs(videoPlayer.currentTime - currentTime) > 1) {
-            videoPlayer.currentTime = currentTime;
-        }
+  if (Math.abs(DOM.videoPlayer.currentTime - serverTime) > 1) {
+    DOM.videoPlayer.currentTime = serverTime;
+  }
+  if (serverPlaying && DOM.videoPlayer.paused) {
+    DOM.videoPlayer.play();
+  } else if (!serverPlaying && !DOM.videoPlayer.paused) {
+    DOM.videoPlayer.pause();
+  }
 
-        if (isPlaying && videoPlayer.paused) {
-            videoPlayer.play();
-        } else if (!isPlaying && !videoPlayer.paused) {
-            videoPlayer.pause();
-        }
-
-        setTimeout(() => (isSyncing = false), 500);
-    }
+  setTimeout(() => (isSyncing = false), 500);
 }
 
-// --- Инициализация HLS-плеера (при выборе комнаты) ---
+// ============== VIDEO / CHAT / ROOMS =================
 function initializeVideoPlayer(hlsUrl) {
-    if (Hls.isSupported()) {
-        hls = new Hls();
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(videoPlayer);
-        hls.on(Hls.Events.MANIFEST_PARSED, populateQualitySelector);
-    } else if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
-        // На Safari и iOS
-        videoPlayer.src = hlsUrl;
-    } else {
-        console.error("HLS не поддерживается в этом браузере.");
-    }
+  if (Hls.isSupported()) {
+    if (hls) hls.destroy();
+    hls = new Hls();
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(DOM.videoPlayer);
+    hls.on(Hls.Events.MANIFEST_PARSED, populateQualitySelector);
+  } else if (DOM.videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
+    DOM.videoPlayer.src = hlsUrl;
+  } else {
+    console.error("HLS is not supported in this browser.");
+  }
 }
 
-// --- Заполнение селектора качества ---
 function populateQualitySelector() {
-    qualitySelector.innerHTML = `<option value="auto">Auto</option>`;
-    hls.levels.forEach((level, index) => {
-        const option = document.createElement("option");
-        option.value = index;
-        option.textContent = `${level.height}p`;
-        qualitySelector.appendChild(option);
-    });
-
-    qualitySelector.addEventListener("change", () => {
-        hls.currentLevel = qualitySelector.value === "auto" ? -1 : parseInt(qualitySelector.value, 10);
-    });
+  DOM.qualitySelector.innerHTML = `<option value="auto">Auto</option>`;
+  hls.levels.forEach((level, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = `${level.height}p`;
+    DOM.qualitySelector.appendChild(option);
+  });
+  DOM.qualitySelector.addEventListener("change", () => {
+    hls.currentLevel = DOM.qualitySelector.value === "auto" ? -1 : parseInt(DOM.qualitySelector.value, 10);
+  });
 }
 
-// --- Функция для входа в комнату (не переинициализируем сокет) ---
-async function joinRoom(roomId, movieId) {
-    currentRoomId = roomId;
-    console.log("Входим в комнату:", roomId);
+function joinRoom(roomId, movieId) {
+  currentRoomId = roomId;
+  console.log("Joining room:", roomId);
 
-    // 1. Сообщаем серверу, что мы хотим присоединиться к комнате
-    sendWebSocketMessage("join_room", { room_id: roomId });
+  sendWebSocketMessage("join_room", { room_id: roomId });
+  sendWebSocketMessage("get_initial_state", { room_id: roomId });
 
-    // 2. Запрашиваем первоначальное состояние комнаты
-    sendWebSocketMessage("get_initial_state", { room_id: roomId });
-
-    // 3. Загружаем детали фильма (по-прежнему через REST)
-    if (movieId) {
-        fetchMovieDetails(movieId);
-    }
+  if (movieId) sendWebSocketMessage("get_movie", { movie_id: movieId });
 }
 
-// --- Fetch деталей фильма по API (REST) ---
-async function fetchMovieDetails(movieId) {
-    try {
-        const response = await fetch(`${apiBaseUrl}/movie/${movieId}/`);
-        const movie = await response.json();
-        if (movie.hls_playlist) {
-            initializeVideoPlayer(movie.hls_playlist);
-        }
-    } catch (error) {
-        console.error("Не удалось получить детали фильма:", error);
-    }
-}
+setInterval(() => {
+  if (!currentRoomId) return;
+  debouncedSyncPlayerState(!DOM.videoPlayer.paused);
+}, 10000);
 
-// --- Обновление списка сообщений в чате ---
 function updateChatMessages(messages) {
-    chatContainer.innerHTML = "";
-    messages.forEach((msg) => {
-        const username = Object.keys(msg)[0];
-        const message = msg[username];
-        addChatMessage(username, message);
-    });
+  DOM.chatMessages.innerHTML = "";
+  messages.forEach((msg) => {
+    const username = Object.keys(msg)[0];
+    const message = msg[username];
+    addChatMessage(username, message);
+  });
 }
 
-// --- Добавить одно сообщение в чат ---
-function addChatMessage(user, message) {
-    const displayName = user || "Anonymous";
-    const messageElement = document.createElement("div");
-    messageElement.textContent = `${displayName}: ${message || "No message"}`;
-    chatContainer.appendChild(messageElement);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+function addChatMessage(username, message) {
+  const messageElement = document.createElement("div");
+  messageElement.textContent = `${username || "Anonymous"}: ${message || "No message"}`;
+  DOM.chatMessages.appendChild(messageElement);
+  DOM.chatMessages.scrollTop = DOM.chatMessages.scrollHeight;
 }
 
-// --- Отобразить список пользователей ---
 function renderUserList(users) {
-    userListItems.innerHTML = "";
-    users.forEach((user) => {
-        const userElement = document.createElement("li");
-        userElement.textContent = user.username || "Anonymous";
-        userListItems.appendChild(userElement);
-    });
+  DOM.userListItems.innerHTML = "";
+  users.forEach((user) => {
+    const li = document.createElement("li");
+    li.textContent = user.username || "Anonymous";
+    DOM.userListItems.appendChild(li);
+  });
 }
 
-// --- Получить список комнат с API (REST) ---
-async function fetchRooms() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/room/`);
-        const result = await response.json();
-
-        if (result.status === "success") {
-            renderRoomList(result.data);
-        } else {
-            console.error("Ошибка при получении списка комнат:", result);
-        }
-    } catch (error) {
-        console.error("Ошибка при запросе списка комнат:", error);
-    }
-}
-
-// --- Отрисовать список комнат ---
 function renderRoomList(rooms) {
-    roomListItems.innerHTML = "";
-    rooms.forEach((room) => {
-        const roomElement = document.createElement("li");
-        roomElement.textContent = `Room: ${room.room_id} (Type: ${room.room_type}, Max: ${room.max_users})`;
-        roomElement.style.cursor = "pointer";
-        roomElement.addEventListener("click", () => joinRoom(room.room_id, room.movie_id));
-        roomListItems.appendChild(roomElement);
-    });
+  DOM.roomListItems.innerHTML = "";
+  rooms.forEach((room) => {
+    const li = document.createElement("li");
+    li.textContent = `Room: ${room.room_id} (Type: ${room.room_type}, Max: ${room.max_users})`;
+    li.addEventListener("click", () => joinRoom(room.room_id, room.movie_id));
+    DOM.roomListItems.appendChild(li);
+  });
 }
 
-// --- Отправка сообщения (чат) ---
-sendButton.addEventListener("click", () => {
-    const message = chatInput.value.trim();
-    if (message && currentRoomId) {
-        sendWebSocketMessage("send_chat_message", {
-            room_id: currentRoomId,
-            message: message,
-        });
-        chatInput.value = "";
-    }
-});
-
-// --- События видеоплеера (для синхронизации) ---
-videoPlayer.addEventListener("play", () => debouncedSyncPlayerState(true));
-videoPlayer.addEventListener("pause", () => debouncedSyncPlayerState(false));
-videoPlayer.addEventListener("seeked", () => debouncedSyncPlayerState(!videoPlayer.paused));
-
-// --- Обработка сабмита формы создания комнаты (через WS) ---
-createRoomForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-        console.error("WebSocket не подключен. Невозможно создать комнату через WS.");
-        return;
-    }
-
-    const roomName = document.getElementById("room-name").value.trim();
-    const movieId = document.getElementById("movie-id").value.trim();
-    const roomType = document.getElementById("room-type").value;
-    const maxUsers = document.getElementById("max-users").value;
-
-    // Отправляем запрос на создание комнаты по WS
-    sendWebSocketMessage("create_room", {
-        room_id: roomName,
-        movie_id: movieId,
-        room_type: roomType,
-        room_owner: 1,
-        max_users: parseInt(maxUsers, 10),
+// EVENT LISTENERS
+DOM.sendButton.addEventListener("click", () => {
+  const message = DOM.chatInput.value.trim();
+  if (message && currentRoomId) {
+    sendWebSocketMessage("send_chat_message", {
+      room_id: currentRoomId,
+      message,
     });
-
-    // Сбрасываем форму
-    createRoomForm.reset();
+    DOM.chatInput.value = "";
+  }
 });
 
-// --- Инициализация приложения (вызываем при загрузке страницы или после логина) ---
+DOM.videoPlayer.addEventListener("play", () => debouncedSyncPlayerState(true));
+DOM.videoPlayer.addEventListener("pause", () => debouncedSyncPlayerState(false));
+DOM.videoPlayer.addEventListener("seeked", () => debouncedSyncPlayerState(!DOM.videoPlayer.paused));
+
+DOM.createRoomForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.error("WebSocket is not connected. Can't create room.");
+    return;
+  }
+  const roomName = document.getElementById("room-name").value.trim();
+  const movieId = document.getElementById("movie-id").value.trim();
+  const roomType = document.getElementById("room-type").value;
+  const maxUsers = document.getElementById("max-users").value;
+
+  sendWebSocketMessage("create_room", {
+    room_id: roomName,
+    movie_id: movieId,
+    room_type: roomType,
+    room_owner: 1,
+    max_users: parseInt(maxUsers, 10),
+  });
+  DOM.createRoomForm.reset();
+});
+
+// INIT APP
 function initializeApp() {
-    // 1. Подключаемся к WebSocket
-    initializeWebSocket();
-
-    // 2. Запрашиваем список комнат по REST
-    fetchRooms();
+  initializeWebSocket();
 }
-
-// Запускаем
-initializeApp();

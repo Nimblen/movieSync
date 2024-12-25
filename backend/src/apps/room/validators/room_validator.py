@@ -24,7 +24,11 @@ async def validate_join_room(room_id: str, incoming_password: str = None):
         raise ValidationError(f"Room with ID '{room_id}' does not exist.")
     users = await RoomUserManager.get_users_in_room_async(room_id)
     room_data = await RoomManager.get_room_async(room_id)
-    if len(users) >= room_data["max_users"]:
+    try:
+        max_users = int(room_data["max_users"])
+    except ValueError:
+        raise ValidationError(f"Invalid max_users value for room '{room_id}'.")
+    if len(users) >= max_users:
         raise ValidationError(f"Room with ID '{room_id}' is full.")
     room_type = room_data.get("room_type", False)
     if room_type == RoomTypes.PRIVATE:
