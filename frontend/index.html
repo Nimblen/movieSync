@@ -270,6 +270,71 @@
       padding: 8px;
       border-bottom: 1px solid #333;
     }
+
+    /* =================== NOTIFICATIONS =================== */
+    #notification-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 300px;
+      z-index: 1000;
+    }
+
+    .notification {
+      background-color: #333;
+      color: #fff;
+      padding: 15px 20px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transform: translateY(-20px);
+      animation: slide-in 0.5s forwards, slide-out 0.5s forwards 4.5s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notification.info {
+      background-color: #007bff;
+    }
+
+    .notification.success {
+      background-color: #28a745;
+    }
+
+    .notification.warning {
+      background-color: #ffc107;
+      color: #333;
+    }
+
+    .notification.error {
+      background-color: #dc3545;
+    }
+
+    .notification .close-btn {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: inherit;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    @keyframes slide-in {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slide-out {
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+    }
   </style>
 </head>
 
@@ -349,6 +414,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
 
   <!-- APP LOGIC -->
   <script src="app.js"></script>
