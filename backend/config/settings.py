@@ -68,6 +68,7 @@ LOCAL_APPS = [
     "src.apps.room",
     "src.apps.movie",
     "src.apps.gallery",
+    "src.apps.notification",
 ]
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

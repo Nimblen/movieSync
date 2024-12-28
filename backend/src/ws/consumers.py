@@ -2,6 +2,8 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import logging
 from src.ws.handlers import handle_rpc_request
 from src.apps.core.utils.rpc_responses import make_rpc_error
+from src.apps.core.constants import SHARD_COUNT
+from src.apps.notification.services import ShardService, Notifier
 from src.apps.room.services import *
 from src.apps.room.rpc import *
 
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class MainConsumer(AsyncJsonWebsocketConsumer):
+    shard_manager = ShardService(SHARD_COUNT)
     async def connect(self):
         try:
             self.user = self.scope["user"]
@@ -20,7 +23,11 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
             #     logger.warning("Attempt to connect by anonymous user. Closing...")
             #     await self.close()
             #     return
+            self.notifier = Notifier(self.channel_layer)
             await self.channel_layer.group_add(f"notification_{self.user.username}", self.channel_name)
+            shard_group = self.shard_manager.get_shard(2)
+            await self.channel_layer.group_add(shard_group, self.channel_name)
+            await self.notifier.send_to_all_users(self.notifier.create_notification_message("This site is in test mode."))
             self.room_id = None
             await self.accept()
 
@@ -30,6 +37,8 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(f"notification_{self.user.username}", self.channel_name)
+        shard_group = self.shard_manager.get_shard(self.user.id)
+        await self.channel_layer.group_discard(shard_group, self.channel_name)
         if self.room_id:
             await self.channel_layer.group_discard(f"room_{self.room_id}", self.channel_name)
             await RoomUserManager.remove_user_from_room_async(self.room_id, self.user.username)

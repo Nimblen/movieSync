@@ -18,6 +18,7 @@ const DOM = {
   userListItems: document.getElementById("user-list-items"),
   qualitySelector: document.getElementById("quality-selector"),
   createRoomForm: document.getElementById("create-room-form"),
+  notificationContainer: document.getElementById("notification-container"), // Добавлено
 };
 
 // HLS & WebSocket references
@@ -48,6 +49,7 @@ function handleLogout() {
   }
   toggleVisibility(DOM.mainContainer, false);
   toggleVisibility(DOM.loginContainer, true);
+  createNotification("You have been logged out.", "info"); // Уведомление
 }
 
 DOM.loginForm.addEventListener("submit", async (event) => {
@@ -59,8 +61,10 @@ DOM.loginForm.addEventListener("submit", async (event) => {
     toggleVisibility(DOM.loginContainer, false);
     toggleVisibility(DOM.mainContainer, true);
     initializeApp();
+    createNotification(`Welcome, ${username}!`, "success"); // Уведомление
   } else {
     showAlert("Login failed - please check username/password");
+    createNotification("Login failed. Please try again.", "error"); // Уведомление
   }
 });
 
@@ -90,6 +94,7 @@ function initializeWebSocket() {
 function sendWebSocketMessage(method, params) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     console.error("WebSocket is not open. Can't send:", method);
+    createNotification(`Cannot send ${method} - WebSocket is not connected.`, "error"); // Уведомление
     return;
   }
   socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id: Date.now() }));
@@ -114,15 +119,23 @@ function handleWebSocketMessage(data) {
       user_joined: () => {
         addChatMessage("System", `${data.result.username} joined the room.`);
         renderUserList(data.result.users);
+        createNotification(`User ${data.result.username} joined the room.`, "success");
       },
       user_left: () => {
         addChatMessage("System", `${data.result.username} left the room.`);
         renderUserList(data.result.users);
+        createNotification(`User ${data.result.username} left the room.`, "warning");
+      },
+      notification: () => {
+        // Предполагается, что сервер отправляет уведомления с полем 'message' и 'level'
+        const { message, level } = data.result;
+        createNotification(message, level.toLowerCase());
       },
     };
     (handlers[data.result.type] || (() => console.log("Unknown result type:", data.result.type)))();
   } else if (data.error) {
     console.error("RPC Error:", data.error);
+    createNotification(`Error: ${data.error.message}`, "error");
   }
 }
 
@@ -183,6 +196,7 @@ function initializeVideoPlayer(hlsUrl) {
     DOM.videoPlayer.src = hlsUrl;
   } else {
     console.error("HLS is not supported in this browser.");
+    createNotification("HLS is not supported in this browser.", "error");
   }
 }
 
@@ -196,6 +210,7 @@ function populateQualitySelector() {
   });
   DOM.qualitySelector.addEventListener("change", () => {
     hls.currentLevel = DOM.qualitySelector.value === "auto" ? -1 : parseInt(DOM.qualitySelector.value, 10);
+    createNotification(`Video quality set to ${DOM.qualitySelector.options[DOM.qualitySelector.selectedIndex].text}`, "info");
   });
 }
 
@@ -207,6 +222,8 @@ function joinRoom(roomId, movieId) {
   sendWebSocketMessage("get_initial_state", { room_id: roomId });
 
   if (movieId) sendWebSocketMessage("get_movie", { movie_id: movieId });
+
+  createNotification(`You have joined room ${roomId}.`, "success");
 }
 
 setInterval(() => {
@@ -249,7 +266,38 @@ function renderRoomList(rooms) {
   });
 }
 
-// EVENT LISTENERS
+// =================== NOTIFICATIONS ===================
+
+// Создание уведомления
+function createNotification(message, type = "info") {
+  const container = DOM.notificationContainer;
+
+  const notification = document.createElement("div");
+  notification.classList.add("notification", type);
+
+  // Добавление кнопки закрытия
+  const closeBtn = document.createElement("button");
+  closeBtn.classList.add("close-btn");
+  closeBtn.innerHTML = "&times;";
+  closeBtn.onclick = () => {
+    container.removeChild(notification);
+  };
+
+  // Добавление сообщения и кнопки в уведомление
+  notification.innerHTML = message;
+  notification.appendChild(closeBtn);
+
+  container.appendChild(notification);
+
+  // Автоматическое удаление уведомления через 5 секунд
+  setTimeout(() => {
+    if (container.contains(notification)) {
+      container.removeChild(notification);
+    }
+  }, 5000);
+}
+
+// Пример отправки уведомления вручную (можно удалить или использовать по необходимости)
 DOM.sendButton.addEventListener("click", () => {
   const message = DOM.chatInput.value.trim();
   if (message && currentRoomId) {
@@ -257,9 +305,11 @@ DOM.sendButton.addEventListener("click", () => {
       room_id: currentRoomId,
       message,
     });
+    addChatMessage("You", message); // Отображение отправленного сообщения
     DOM.chatInput.value = "";
   }
 });
+
 
 DOM.videoPlayer.addEventListener("play", () => debouncedSyncPlayerState(true));
 DOM.videoPlayer.addEventListener("pause", () => debouncedSyncPlayerState(false));
@@ -285,6 +335,7 @@ DOM.createRoomForm.addEventListener("submit", (event) => {
   });
   DOM.createRoomForm.reset();
 });
+
 
 // INIT APP
 function initializeApp() {
