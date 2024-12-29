@@ -48,6 +48,7 @@ services:
       - ./nginx/correct_permissions.sh:/correct_permissions.sh
       - static_data:/usr/share/nginx/html/static
       - media_data:/usr/share/nginx/html/media
+      - ./frontend:/usr/share/nginx/html
     ports:
       - 80:80
     networks:

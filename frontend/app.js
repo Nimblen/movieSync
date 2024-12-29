@@ -1,5 +1,5 @@
 // ============ EDIT THIS URL AS NEEDED =============
-const socketBaseUrl = "ws://localhost:8000/ws/app"; 
+const socketBaseUrl = "ws://localhost/ws/app"; 
 // ==================================================
 
 // DOM Elements
