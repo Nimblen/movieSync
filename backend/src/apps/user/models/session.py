@@ -11,6 +11,8 @@ class Session(TimeStampedModel):
     ip_address = models.GenericIPAddressField(default="127.0.0.1")
     last_activity = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = ("user", "device", "ip_address")
 
     def __str__(self):
         return f"{self.user.username} - {self.device}"

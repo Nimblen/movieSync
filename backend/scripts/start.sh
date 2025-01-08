@@ -14,7 +14,7 @@ python manage.py migrate
 python manage.py collectstatic --noinput --verbosity 0
 
 # Start Gunicorn and Daphne
-gunicorn config.wsgi:application --bind 0.0.0.0:8000 &
+#gunicorn config.wsgi:application --bind 0.0.0.0:8000 &
 daphne -b 0.0.0.0 -p 8020 config.asgi:application &
 
 # Wait for all background processes

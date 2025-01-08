@@ -41,7 +41,9 @@ class UserViewSet(ModelViewSet):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         refresh = RefreshToken.for_user(user)
-        Session.objects.create(user=user, ip_address=ip_address, device=device, token=str(refresh))
+        session, _ = Session.objects.get_or_create(user=user, ip_address=ip_address, device=device)
+        session.token = str(refresh)
+        session.save()
         token_data = {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
@@ -53,4 +55,4 @@ class UserViewSet(ModelViewSet):
     def get_me(self, request):
         user = request.user
         serializer = self.get_serializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK) 

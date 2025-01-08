@@ -22,7 +22,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Movie
-        fields = ["title", "description", "hls_playlist", "categories", "images"]
+        fields = ["id", "title", "description", "hls_playlist", "categories", "images"]
 
     def create(self, validated_data):
             categories_data = validated_data.pop("categories", [])

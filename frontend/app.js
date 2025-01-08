@@ -18,7 +18,7 @@ const DOM = {
   userListItems: document.getElementById("user-list-items"),
   qualitySelector: document.getElementById("quality-selector"),
   createRoomForm: document.getElementById("create-room-form"),
-  notificationContainer: document.getElementById("notification-container"), // Добавлено
+  notificationContainer: document.getElementById("notification-container"),
 };
 
 // HLS & WebSocket references
@@ -35,21 +35,68 @@ const toggleVisibility = (element, visible) => {
 
 // ---------- LOGIN/LOGOUT LOGIC ----------
 async function login(username, password) {
-  if (username && password) {
+  try {
+    const response = await fetch("/api/user/login/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Login failed. Please check your username/password.");
+    }
+
+    const { access, refresh } = await response.json();
+    localStorage.setItem("accessToken", access);
+    localStorage.setItem("refreshToken", refresh);
     localStorage.setItem("loggedInUser", username);
+
     return true;
+  } catch (error) {
+    console.error("Login error:", error);
+    return false;
   }
-  return false;
+}
+
+async function refreshAccessToken() {
+  try {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!refreshToken) {
+      throw new Error("Refresh token not found. Please log in again.");
+    }
+
+    const response = await fetch("/api/token/refresh/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to refresh token.");
+    }
+
+    const { access } = await response.json();
+    localStorage.setItem("accessToken", access);
+    return access;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    handleLogout();
+    return null;
+  }
 }
 
 function handleLogout() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
   localStorage.removeItem("loggedInUser");
+
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.close();
   }
+
   toggleVisibility(DOM.mainContainer, false);
   toggleVisibility(DOM.loginContainer, true);
-  createNotification("You have been logged out.", "info"); // Уведомление
+  createNotification("You have been logged out.", "info");
 }
 
 DOM.loginForm.addEventListener("submit", async (event) => {
@@ -61,10 +108,10 @@ DOM.loginForm.addEventListener("submit", async (event) => {
     toggleVisibility(DOM.loginContainer, false);
     toggleVisibility(DOM.mainContainer, true);
     initializeApp();
-    createNotification(`Welcome, ${username}!`, "success"); // Уведомление
+    createNotification(`Welcome, ${username}!`, "success");
   } else {
     showAlert("Login failed - please check username/password");
-    createNotification("Login failed. Please try again.", "error"); // Уведомление
+    createNotification("Login failed. Please try again.", "error");
   }
 });
 
@@ -72,12 +119,15 @@ DOM.logoutButton.addEventListener("click", handleLogout);
 
 // =============== WEBSOCKET & SYNC LOGIC =================
 function initializeWebSocket() {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    console.log("WebSocket already connected.");
+  const accessToken = localStorage.getItem("accessToken");
+  if (!accessToken) {
+    console.error("Access token not found. Please log in.");
+    createNotification("Access token missing. Please log in.", "error");
     return;
   }
 
-  socket = new WebSocket(socketBaseUrl);
+  const socketUrl = `${socketBaseUrl}?token=${accessToken}`;
+  socket = new WebSocket(socketUrl);
 
   socket.onopen = () => {
     console.log("WebSocket: connection established.");
@@ -86,18 +136,40 @@ function initializeWebSocket() {
 
   socket.onerror = (error) => console.error("WebSocket error:", error);
 
-  socket.onclose = () => console.warn("WebSocket: connection closed.");
+  socket.onclose = () => {
+    console.warn("WebSocket: connection closed.");
+    createNotification("WebSocket connection closed.", "warning");
+  };
 
   socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
 }
 
-function sendWebSocketMessage(method, params) {
+async function sendWebSocketMessage(method, params) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     console.error("WebSocket is not open. Can't send:", method);
-    createNotification(`Cannot send ${method} - WebSocket is not connected.`, "error"); // Уведомление
+    createNotification(`Cannot send ${method} - WebSocket is not connected.`, "error");
     return;
   }
-  socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id: Date.now() }));
+
+  const accessToken = localStorage.getItem("accessToken");
+  if (!accessToken) {
+    console.error("Access token missing. Refreshing...");
+    await refreshAccessToken();
+  }
+
+  const message = {
+    jsonrpc: "2.0",
+    method,
+    params,
+    id: Date.now(),
+  };
+
+  try {
+    socket.send(JSON.stringify(message));
+  } catch (error) {
+    console.error("Error sending WebSocket message:", error);
+    createNotification(`Error sending ${method}: ${error.message}`, "error");
+  }
 }
 
 function handleWebSocketMessage(data) {
@@ -127,7 +199,6 @@ function handleWebSocketMessage(data) {
         createNotification(`User ${data.result.username} left the room.`, "warning");
       },
       notification: () => {
-        // Предполагается, что сервер отправляет уведомления с полем 'message' и 'level'
         const { message, level } = data.result;
         createNotification(message, level.toLowerCase());
       },
@@ -183,6 +254,7 @@ function setPlayerState(state) {
 
   setTimeout(() => (isSyncing = false), 500);
 }
+
 
 // ============== VIDEO / CHAT / ROOMS =================
 function initializeVideoPlayer(hlsUrl) {
@@ -266,16 +338,15 @@ function renderRoomList(rooms) {
   });
 }
 
+
 // =================== NOTIFICATIONS ===================
 
-// Создание уведомления
 function createNotification(message, type = "info") {
   const container = DOM.notificationContainer;
 
   const notification = document.createElement("div");
   notification.classList.add("notification", type);
 
-  // Добавление кнопки закрытия
   const closeBtn = document.createElement("button");
   closeBtn.classList.add("close-btn");
   closeBtn.innerHTML = "&times;";
@@ -283,19 +354,18 @@ function createNotification(message, type = "info") {
     container.removeChild(notification);
   };
 
-  // Добавление сообщения и кнопки в уведомление
   notification.innerHTML = message;
   notification.appendChild(closeBtn);
 
   container.appendChild(notification);
 
-  // Автоматическое удаление уведомления через 5 секунд
   setTimeout(() => {
     if (container.contains(notification)) {
       container.removeChild(notification);
     }
   }, 5000);
 }
+
 
 // Пример отправки уведомления вручную (можно удалить или использовать по необходимости)
 DOM.sendButton.addEventListener("click", () => {

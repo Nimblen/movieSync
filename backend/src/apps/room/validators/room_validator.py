@@ -12,7 +12,7 @@ class UniqueRoomValidator:
 
 
 async def validate_creating_private_room(data):
-    if "room_password" not in data and data.room_type == RoomTypes.PRIVATE:
+    if "room_password" not in data and data.get("room_type") == RoomTypes.PRIVATE:
         raise ValidationError("Не задан пароль для приватной комнаты.")
 
 
