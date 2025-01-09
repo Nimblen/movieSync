@@ -1,1 +1,1 @@
-from .movie import Movie, Category, MovieFile
+from .movie import Movie, Category, MovieUpload

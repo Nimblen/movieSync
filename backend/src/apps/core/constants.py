@@ -30,8 +30,18 @@ class NotificationLevels(Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
 
+class FileUploadStatus:
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    SUCCESS = "success"
+    FAILED = "failed"
 
-
+    FILE_UPLOAD_STATUS_CHOICES = [
+        (PENDING, "Pending"),
+        (IN_PROGRESS, "In Progress"),
+        (SUCCESS, "Success"),
+        (FAILED, "Failed"),
+    ]
 class RoomTypes:
     PUBLIC = "public"
     PRIVATE = "private"

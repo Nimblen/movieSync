@@ -23,6 +23,7 @@ services:
       - static_data:/app/static
       - media_data:/app/media
     expose:
+      - 8010
       - 8020
     env_file:
       - ./backend/.envs/.env
@@ -62,6 +63,7 @@ services:
     command: celery --app=config worker --loglevel=info --logfile=logs/celery.log
     volumes:
       - ./backend:/app
+      - media_data:/app/media
     env_file:
       - ./backend/.envs/.env
     depends_on:

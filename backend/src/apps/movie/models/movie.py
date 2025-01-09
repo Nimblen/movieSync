@@ -5,7 +5,7 @@ from django.db import models
 
 from src.apps.movie.services.video_converter import convert_to_hls
 from src.apps.core.models.abstracts import TimeStampedModel
-
+from src.apps.core.constants import FileUploadStatus
 
 class Category(TimeStampedModel):
     name = models.CharField(max_length=255)
@@ -31,11 +31,9 @@ class Movie(TimeStampedModel):
 
 
 
-class MovieFile(TimeStampedModel):
+class MovieUpload(models.Model):
     title = models.CharField(max_length=255)
-    video_file = models.FileField(upload_to='movies/')  
-    hls_playlist = models.URLField(blank=True, null=True)
-    is_converted = models.BooleanField(default=False)  
-
-    def __str__(self):
-        return self.title
+    description = models.TextField(blank=True, null=True)
+    video_file = models.FileField(upload_to='temp_videos/')
+    status = models.CharField(max_length=50, choices=FileUploadStatus.FILE_UPLOAD_STATUS_CHOICES, default=FileUploadStatus.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
