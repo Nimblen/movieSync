@@ -6,6 +6,7 @@ from src.apps.core.constants import SHARD_COUNT
 from src.apps.notification.services import ShardService, Notifier
 from src.apps.room.services import *
 from src.apps.room.rpc import *
+from src.apps.movie.rpc import *
 
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,13 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         try:
             self.user = self.scope["user"]
-            # if isinstance(user, AnonymousUser) or not user.is_authenticated:
-            #     logger.warning("Attempt to connect by anonymous user. Closing...")
-            #     await self.close()
-            #     return
+            if self.user.is_anonymous:
+                logger.warning("Attempt to connect by anonymous user. Closing...")
+                await self.close()
+                return
             self.notifier = Notifier(self.channel_layer)
             await self.channel_layer.group_add(f"notification_{self.user.username}", self.channel_name)
-            shard_group = self.shard_manager.get_shard(2)
+            shard_group = self.shard_manager.get_shard(self.user.id)
             await self.channel_layer.group_add(shard_group, self.channel_name)
             await self.notifier.send_to_all_users(self.notifier.create_notification_message("This site is in test mode."))
             self.room_id = None
