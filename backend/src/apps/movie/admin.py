@@ -1,7 +1,9 @@
 from django.utils.html import format_html
 from django.contrib import admin
-from src.apps.movie.models.movie import Movie, MovieFile
+from src.apps.movie.models.movie import Movie, MovieUpload
 from src.apps.gallery.models.movie import MovieImages
+from src.apps.movie.tasks import process_movie_upload
+from src.apps.core.constants import FileUploadStatus
 # Register your models here.
 
 
@@ -31,9 +33,17 @@ admin.site.register(Movie, MovieAdmin)
 
 
 
-class MovieFileAdmin(admin.ModelAdmin):
-    list_display = ['title', 'is_converted']
-    list_filter = ['is_converted']
-    search_fields = ['title']
+@admin.register(MovieUpload)
+class MovieUploadAdmin(admin.ModelAdmin):
+    list_display = ['title', 'status', 'created_at']
+    actions = ['retry_movie_upload']
 
-admin.site.register(MovieFile, MovieFileAdmin)
+    def retry_movie_upload(self, request, queryset):
+        for upload in queryset:
+            if upload.status == FileUploadStatus.FAILED:
+                process_movie_upload.delay(upload.id)
+                upload.status = FileUploadStatus.PENDING
+                upload.save() 
+            else:
+                self.message_user(request, f"Movie upload with id {upload.id} has status {upload.status} and cannot be retried.")
+    retry_movie_upload.short_description = "Retry convert to HLS"

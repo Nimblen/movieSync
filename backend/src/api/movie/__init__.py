@@ -1,11 +1,11 @@
 from django.urls import path, include
 from rest_framework import routers
-from .movie import MovieFileUploadView, MovieViewSet
+from .movie import MovieUploadView, MovieViewSet
 
 router = routers.DefaultRouter()
 router.register(r"movie", MovieViewSet, basename="movie")
 
 urlpatterns = [
     path("", include(router.urls)),
-    path('upload/', MovieFileUploadView.as_view(), name='upload_movie'),
+    path('upload/', MovieUploadView.as_view(), name='movie-upload'),
 ]
