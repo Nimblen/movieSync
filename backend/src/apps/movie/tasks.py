@@ -5,7 +5,7 @@ from celery import shared_task
 from src.apps.movie.services.video_converter import convert_to_hls
 from src.apps.movie.models.movie import Movie, MovieUpload
 from src.apps.core.constants import FileUploadStatus
-from src.apps.core.utils import is_gpu_available
+
 @shared_task
 def process_movie_upload(movie_upload_id):
     '''Function to convert video to HLS and create Movie object'''

@@ -11,6 +11,7 @@ from src.apps.core.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 class Notifier:
     def __init__(self, channel_layer):
         self.channel_layer = channel_layer
@@ -35,7 +36,9 @@ class Notifier:
             await self.channel_layer.group_send(group_name, message)
             logger.debug(f"Sent message to group {group_name}: {event_type}")
         except Exception as e:
-            logger.error(f"Failed to send message to group {group_name}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to send message to group {group_name}: {e}", exc_info=True
+            )
 
     async def send_notification(
         self,
@@ -50,18 +53,24 @@ class Notifier:
         """
         if group_type == NotificationGroupTypes.ALL:
             tasks = [
-                self.send_to_group(f"all_users_shard_{shard_id}", event_type, data, request_id)
+                self.send_to_group(
+                    f"all_users_shard_{shard_id}", event_type, data, request_id
+                )
                 for shard_id in range(SHARD_COUNT)
             ]
             await asyncio.gather(*tasks)
         elif group_type == NotificationGroupTypes.ROOM:
             if not identifier:
-                raise ValueError("Необходимо предоставить room_id для уведомлений комнаты.")
+                raise ValueError(
+                    "Необходимо предоставить room_id для уведомлений комнаты."
+                )
             group_name = f"room_{identifier}"
             await self.send_to_group(group_name, event_type, data, request_id)
         elif group_type == NotificationGroupTypes.INDIVIDUAL:
             if not identifier:
-                raise ValueError("Необходимо предоставить username для индивидуальных уведомлений.")
+                raise ValueError(
+                    "Необходимо предоставить username для индивидуальных уведомлений."
+                )
             group_name = f"notification_{identifier}"
             await self.send_to_group(group_name, event_type, data, request_id)
         else:
@@ -115,7 +124,6 @@ class Notifier:
             identifier=username,
             request_id=request_id,
         )
-
 
     def create_notification_message(
         self,

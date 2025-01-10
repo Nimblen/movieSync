@@ -5,7 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework import status
 from src.apps.user.serializers.token_serializer import TokenRefreshSerializer
-from src.apps.user.models.token import TokenBlackList
+
 
 
 class TokenRefreshView(GenericAPIView):

@@ -37,11 +37,18 @@ class UserViewSet(ModelViewSet):
         user = authenticate(username=username, password=password)
         if user is None:
             return Response(
-                {"error": {"code": "INVALID_CREDENTIALS", "message": "Invalid username or password"}},
-                status=status.HTTP_401_UNAUTHORIZED
+                {
+                    "error": {
+                        "code": "INVALID_CREDENTIALS",
+                        "message": "Invalid username or password",
+                    }
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
             )
         refresh = RefreshToken.for_user(user)
-        session, _ = Session.objects.get_or_create(user=user, ip_address=ip_address, device=device)
+        session, _ = Session.objects.get_or_create(
+            user=user, ip_address=ip_address, device=device
+        )
         session.token = str(refresh)
         session.save()
         token_data = {
@@ -50,9 +57,8 @@ class UserViewSet(ModelViewSet):
         }
         return Response(token_data, status=status.HTTP_200_OK)
 
-
     @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
     def get_me(self, request):
         user = request.user
         serializer = self.get_serializer(user)
-        return Response(serializer.data, status=status.HTTP_200_OK) 
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,6 +1,5 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import generics, status
-import os
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
@@ -13,6 +12,7 @@ class MovieViewSet(ModelViewSet):
     queryset = Movie.objects.all()
     serializer_class = MovieSerializer
 
+
 class MovieUploadView(generics.CreateAPIView):
     queryset = MovieUpload.objects.all()
     serializer_class = MovieUploadSerializer
@@ -23,8 +23,11 @@ class MovieUploadView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         movie_upload_obj = serializer.save()
         process_movie_upload.delay(movie_upload_obj.id)
-        return Response({
-            "detail": "Видео принято и поставлено в очередь на обработку.",
-            "upload_id": movie_upload_obj.id,
-            "status": movie_upload_obj.status
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                "detail": "Видео принято и поставлено в очередь на обработку.",
+                "upload_id": movie_upload_obj.id,
+                "status": movie_upload_obj.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )

@@ -1,4 +1,3 @@
-from src.apps.movie.serializers.movie import MovieSerializer
 from src.apps.core.utils.rpc_registry import rpc_method
 from src.apps.movie.models.movie import Movie
 
