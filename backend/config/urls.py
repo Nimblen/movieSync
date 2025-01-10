@@ -25,7 +25,7 @@ from src.api import urlpatterns
 API_BASE = "api/"
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path(API_BASE + "admin/", admin.site.urls),
     path(API_BASE, include(urlpatterns)),
     path(API_BASE + "schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
@@ -36,4 +36,5 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

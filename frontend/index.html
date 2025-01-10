@@ -1,241 +1,424 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Together</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background-color: #121212;
-            color: #ffffff;
-        }
+  <meta charset="UTF-8" />
+  <title>Movie Together</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- HLS.js for HLS playback -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    /* GLOBAL STYLES */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-        #main-container {
-            display: flex;
-            flex: 1;
-        }
+    /* ============== LOGIN ============== */
+    #login-container {
+      flex: 1; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #121212;
+    }
+    #login-form {
+      background-color: #1e1e1e;
+      padding: 20px;
+      border-radius: 8px;
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    #login-form label {
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    #login-form input {
+      background-color: #2c2c2c;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #fff;
+      padding: 8px;
+      margin-top: 5px;
+    }
+    #login-form button {
+      margin-top: 15px;
+      padding: 10px;
+      background-color: #007bff;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #login-form button:hover {
+      background-color: #0056b3;
+    }
 
-        #room-list {
-            width: 20%;
-            background-color: #1e1e1e;
-            border-right: 1px solid #333;
-            padding: 10px;
-            overflow-y: auto;
-        }
+    /* ============== MAIN APP ============== */
+    /* Hide main container until logged in */
+    #main-container {
+      display: none; 
+      flex: 1;
+      flex-direction: column; 
+    }
 
-        #room-list h2 {
-            margin: 0 0 10px;
-        }
+    /* HEADER BAR */
+    #header {
+      background-color: #1f1f1f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid #333;
+    }
+    #app-title {
+      font-size: 20px;
+      font-weight: bold;
+    }
+    #logout-button {
+      background-color: #dc3545;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #logout-button:hover {
+      background-color: #c82333;
+    }
 
-        #room-list ul {
-            list-style: none;
-            padding: 0;
-        }
+    /* MAIN CONTENT LAYOUT */
+    #app-content {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
 
-        #room-list li {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid #333;
-            color: #fff;
-        }
+    /* SIDEBAR: Rooms + Create Room form */
+    #sidebar {
+      width: 250px;
+      background-color: #1e1e1e;
+      border-right: 1px solid #333;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    #sidebar h2 {
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+    #room-list-items {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 15px;
+      overflow-y: auto;
+      max-height: 250px;
+    }
+    #room-list-items li {
+      padding: 8px;
+      border-bottom: 1px solid #333;
+      cursor: pointer;
+    }
+    #room-list-items li:hover {
+      background-color: #333;
+    }
+    #create-room-form {
+      margin-top: auto; /* push form to bottom */
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #create-room-form input,
+    #create-room-form select {
+      background-color: #2c2c2c;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #fff;
+      padding: 8px;
+    }
+    #create-room-form button {
+      background-color: #28a745;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #create-room-form button:hover {
+      background-color: #218838;
+    }
 
-        #room-list li:hover {
-            background-color: #333;
-        }
+    /* VIDEO SECTION */
+    #main-video-area {
+      flex: 2;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      overflow: hidden;
+    }
+    #video-container {
+      position: relative;
+      background-color: #2a2a2a;
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 10px;
+      overflow: hidden;
+      border: 1px solid #333;
+      border-radius: 5px;
+    }
+    #video-player {
+      width: 100%;
+      max-height: 100%;
+      outline: none;
+    }
+    #quality-selector {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      background-color: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #fff;
+      padding: 5px;
+      cursor: pointer;
+    }
 
-        #create-room-form {
-            display: flex;
-            flex-direction: column;
-            margin-top: 10px;
-        }
+    /* CHAT & PARTICIPANTS SECTION */
+    #chat-and-participants {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
 
-        #create-room-form input, #create-room-form select, #create-room-form button {
-            margin-bottom: 5px;
-            padding: 8px;
-            border: 1px solid #333;
-            background-color: #1e1e1e;
-            color: #fff;
-            border-radius: 5px;
-        }
+    /* CHAT */
+    #chat-container {
+      flex: 2;
+      margin-right: 10px;
+      border: 1px solid #333;
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      background-color: #1e1e1e;
+    }
+    #chat-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      background-color: rgba(30, 30, 30, 0.9);
+    }
+    #chat-input-container {
+      display: flex;
+      border-top: 1px solid #333;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 0;
+      background-color: #2c2c2c;
+      color: #fff;
+    }
+    #send-button {
+      padding: 0 16px;
+      border: none;
+      background-color: #007bff;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #send-button:hover {
+      background-color: #0056b3;
+    }
 
-        #create-room-form button {
-            background-color: #28a745;
-            cursor: pointer;
-        }
+    /* PARTICIPANTS */
+    #participants-container {
+      flex: 1;
+      border: 1px solid #333;
+      border-radius: 5px;
+      background-color: #1e1e1e;
+      display: flex;
+      flex-direction: column;
+    }
+    #participants-container h3 {
+      padding: 10px;
+      margin: 0;
+      border-bottom: 1px solid #333;
+    }
+    #user-list-items {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+    #user-list-items li {
+      padding: 8px;
+      border-bottom: 1px solid #333;
+    }
 
-        #create-room-form button:hover {
-            background-color: #218838;
-        }
+    /* =================== NOTIFICATIONS =================== */
+    #notification-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 300px;
+      z-index: 1000;
+    }
 
-        #content {
-            flex: 1;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-        }
+    .notification {
+      background-color: #333;
+      color: #fff;
+      padding: 15px 20px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transform: translateY(-20px);
+      animation: slide-in 0.5s forwards, slide-out 0.5s forwards 4.5s;
+      position: relative;
+      overflow: hidden;
+    }
 
-        #video-container {
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex: 1;
-            margin-bottom: 10px;
-        }
+    .notification.info {
+      background-color: #007bff;
+    }
 
-        #video-container video {
-            width: 100%;
-            max-width: 100%;
-        }
+    .notification.success {
+      background-color: #28a745;
+    }
 
-        #quality-selector {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            background-color: #1e1e1e;
-            color: #fff;
-            border: 1px solid #333;
-            border-radius: 5px;
-            padding: 5px;
-            cursor: pointer;
-        }
+    .notification.warning {
+      background-color: #ffc107;
+      color: #333;
+    }
 
-        #chat-and-users {
-            display: flex;
-            flex: 1;
-        }
+    .notification.error {
+      background-color: #dc3545;
+    }
 
-        #chat-container {
-            flex: 2;
-            margin-right: 10px;
-            border: 1px solid #333;
-            border-radius: 5px;
-            padding: 10px;
-            height: calc(100% - 40px);
-            overflow-y: auto;
-            background-color: rgba(30, 30, 30, 0.9);
-        }
+    .notification .close-btn {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: inherit;
+      font-size: 16px;
+      cursor: pointer;
+    }
 
-        #chat-input-container {
-            display: flex;
-            margin-top: 10px;
-        }
+    @keyframes slide-in {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
-        #chat-input {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #333;
-            border-radius: 5px 0 0 5px;
-            background-color: #1e1e1e;
-            color: #fff;
-        }
-
-        #send-button {
-            padding: 10px;
-            border: 1px solid #333;
-            border-left: none;
-            border-radius: 0 5px 5px 0;
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-        }
-
-        #send-button:hover {
-            background-color: #0056b3;
-        }
-
-        #user-list {
-            flex: 1;
-            border: 1px solid #333;
-            border-radius: 5px;
-            padding: 10px;
-            height: calc(100% - 40px);
-            overflow-y: auto;
-            background-color: rgba(20, 20, 20, 0.9);
-        }
-
-        #user-list h3 {
-            margin: 0 0 10px;
-        }
-
-        #user-list ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        #user-list li {
-            padding: 5px;
-            border-bottom: 1px solid #333;
-            color: #fff;
-        }
-
-        #user-list li:last-child {
-            border-bottom: none;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    @keyframes slide-out {
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+    }
+  </style>
 </head>
+
 <body>
-    <h1 style="text-align: center; margin: 10px 0;">Movie Together</h1>
+  <!-- LOGIN SECTION (shown by default) -->
+  <div id="login-container">
+    <form id="login-form">
+      <label>Username:
+        <input type="text" id="login-username" required />
+      </label>
+      <label>Password:
+        <input type="password" id="login-password" required />
+      </label>
+      <button type="submit">Login</button>
+    </form>
+  </div>
 
-    <div id="main-container">
-        <!-- Список комнат -->
-        <div id="room-list">
-            <h2>Rooms</h2>
-            <ul id="room-list-items">
-                <!-- Dynamic room list will be appended here -->
-            </ul>
-            <!-- Form for creating rooms -->
-            <form id="create-room-form">
-                <input type="text" id="room-name" placeholder="Room name" required>
-                <input type="text" id="movie-id" placeholder="Movie ID" required>
-                <select id="room-type">
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                </select>
-                <input type="number" id="max-users" placeholder="Max Users" min="1" value="5" required>
-                <button type="submit">Create Room</button>
-            </form>
-        </div>
-
-        <!-- Основное содержимое -->
-        <div id="content">
-            <div id="video-container">
-                <!-- Видеоплеер -->
-                <video id="video-player" controls></video>
-                <select id="quality-selector">
-                    <option value="auto">Auto</option>
-                </select>
-            </div>
-
-            <!-- Чат и список пользователей -->
-            <div id="chat-and-users">
-                <!-- Чат -->
-                <div id="chat-container"></div>
-
-                <!-- Список пользователей -->
-                <div id="user-list">
-                    <h3>Participants</h3>
-                    <ul id="user-list-items">
-                        <!-- Dynamic user list will be appended here -->
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Ввод сообщения -->
-            <div id="chat-input-container">
-                <input type="text" id="chat-input" placeholder="Type a message...">
-                <button id="send-button">Send</button>
-            </div>
-        </div>
+  <!-- MAIN APP (hidden until logged in) -->
+  <div id="main-container">
+    <!-- HEADER BAR -->
+    <div id="header">
+      <div id="app-title">Movie Together</div>
+      <button id="logout-button">Logout</button>
     </div>
 
-    <script src="app.js"></script>
+    <!-- APP CONTENT AREA -->
+    <div id="app-content">
+      <!-- SIDEBAR with ROOMS + CREATE FORM -->
+      <div id="sidebar">
+        <h2>Rooms</h2>
+        <ul id="room-list-items"></ul>
+        <form id="create-room-form">
+          <input type="text" id="room-name" placeholder="Room name" required />
+          <input type="text" id="movie-id" placeholder="Movie ID" required />
+          <select id="room-type">
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+          </select>
+          <input
+            type="number"
+            id="max-users"
+            placeholder="Max Users"
+            min="1"
+            value="5"
+            required
+          />
+          <button type="submit">Create Room</button>
+        </form>
+      </div>
+
+      <!-- MAIN VIDEO AREA -->
+      <div id="main-video-area">
+        <!-- VIDEO CONTAINER -->
+        <div id="video-container">
+          <video id="video-player" controls></video>
+          <select id="quality-selector">
+            <option value="auto">Auto</option>
+          </select>
+        </div>
+
+        <!-- CHAT & PARTICIPANTS ROW -->
+        <div id="chat-and-participants">
+          <!-- CHAT -->
+          <div id="chat-container">
+            <div id="chat-messages"></div>
+            <div id="chat-input-container">
+              <input type="text" id="chat-input" placeholder="Type a message..." />
+              <button id="send-button">Send</button>
+            </div>
+          </div>
+          <!-- PARTICIPANTS -->
+          <div id="participants-container">
+            <h3>Participants</h3>
+            <ul id="user-list-items"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
+
+  <!-- APP LOGIC -->
+  <script src="app.js"></script>
 </body>
 </html>

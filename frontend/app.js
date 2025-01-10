@@ -1,253 +1,413 @@
-const apiBaseUrl = "http://localhost:8000/api"; // Backend API Base URL
-const socketBaseUrl = "ws://localhost:8000/ws/movie/"; // WebSocket Base URL
+// ============ EDIT THIS URL AS NEEDED =============
+const socketBaseUrl = "ws://localhost/ws/app"; 
+// ==================================================
 
 // DOM Elements
-const roomListItems = document.getElementById("room-list-items");
-const videoPlayer = document.getElementById("video-player");
-const chatContainer = document.getElementById("chat-container");
-const chatInput = document.getElementById("chat-input");
-const sendButton = document.getElementById("send-button");
-const userListItems = document.getElementById("user-list-items");
-const qualitySelector = document.getElementById("quality-selector");
-const createRoomForm = document.getElementById("create-room-form");
+const DOM = {
+  loginContainer: document.getElementById("login-container"),
+  loginForm: document.getElementById("login-form"),
+  loginUsernameInput: document.getElementById("login-username"),
+  loginPasswordInput: document.getElementById("login-password"),
+  mainContainer: document.getElementById("main-container"),
+  logoutButton: document.getElementById("logout-button"),
+  roomListItems: document.getElementById("room-list-items"),
+  videoPlayer: document.getElementById("video-player"),
+  chatMessages: document.getElementById("chat-messages"),
+  chatInput: document.getElementById("chat-input"),
+  sendButton: document.getElementById("send-button"),
+  userListItems: document.getElementById("user-list-items"),
+  qualitySelector: document.getElementById("quality-selector"),
+  createRoomForm: document.getElementById("create-room-form"),
+  notificationContainer: document.getElementById("notification-container"),
+};
 
-let hls, socket, currentRoomId = null;
-let lastSyncState = { current_time: 0, is_playing: false }; // Last sent state
+// HLS & WebSocket references
+let hls, socket;
+let currentRoomId = null;
+let lastSyncState = { current_time: 0, is_playing: false };
+let isSyncing = false;
 
-// --- Fetch Rooms from API ---
-async function fetchRooms() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/room/`);
-        const result = await response.json();
+// ========== HELPER FUNCTIONS ==========
+const showAlert = (message) => alert(message);
+const toggleVisibility = (element, visible) => {
+  element.style.display = visible ? "flex" : "none";
+};
 
-        if (result.status === "success") {
-            renderRoomList(result.data);
-        } else {
-            console.error("Failed to fetch rooms:", result);
-        }
-    } catch (error) {
-        console.error("Error fetching rooms:", error);
-    }
-}
-
-// --- Render Room List ---
-function renderRoomList(rooms) {
-    roomListItems.innerHTML = "";
-    rooms.forEach((room) => {
-        const roomElement = document.createElement("li");
-        roomElement.textContent = `Room: ${room.room_id} (Type: ${room.room_type}, Max: ${room.max_users})`;
-        roomElement.style.cursor = "pointer";
-        roomElement.addEventListener("click", () => joinRoom(room.room_id, room.movie_id));
-        roomListItems.appendChild(roomElement);
-    });
-}
-
-// --- Join a Room ---
-function joinRoom(roomId, movieId) {
-    currentRoomId = roomId;
-    console.log(`Joining Room: ${roomId}`);
-    fetchMovieDetails(movieId);
-    initializeWebSocket(roomId);
-}
-
-// --- Fetch Movie Details ---
-async function fetchMovieDetails(movieId) {
-    try {
-        const response = await fetch(`${apiBaseUrl}/movie/${movieId}/`);
-        const movie = await response.json();
-        initializeVideoPlayer(movie.hls_playlist);
-    } catch (error) {
-        console.error("Failed to fetch movie details:", error);
-    }
-}
-
-// --- Initialize Video Player ---
-function initializeVideoPlayer(hlsUrl) {
-    if (Hls.isSupported()) {
-        hls = new Hls();
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(videoPlayer);
-        hls.on(Hls.Events.MANIFEST_PARSED, populateQualitySelector);
-    } else if (videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
-        videoPlayer.src = hlsUrl;
-    } else {
-        console.error("HLS is not supported in this browser.");
-    }
-}
-
-// --- Populate Quality Selector ---
-function populateQualitySelector() {
-    qualitySelector.innerHTML = `<option value="auto">Auto</option>`;
-    hls.levels.forEach((level, index) => {
-        const option = document.createElement("option");
-        option.value = index;
-        option.textContent = `${level.height}p`;
-        qualitySelector.appendChild(option);
+// ---------- LOGIN/LOGOUT LOGIC ----------
+async function login(username, password) {
+  try {
+    const response = await fetch("/api/user/login/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
     });
 
-    qualitySelector.addEventListener("change", () => {
-        hls.currentLevel = qualitySelector.value === "auto" ? -1 : parseInt(qualitySelector.value, 10);
+    if (!response.ok) {
+      throw new Error("Login failed. Please check your username/password.");
+    }
+
+    const { access, refresh } = await response.json();
+    localStorage.setItem("accessToken", access);
+    localStorage.setItem("refreshToken", refresh);
+    localStorage.setItem("loggedInUser", username);
+
+    return true;
+  } catch (error) {
+    console.error("Login error:", error);
+    return false;
+  }
+}
+
+async function refreshAccessToken() {
+  try {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!refreshToken) {
+      throw new Error("Refresh token not found. Please log in again.");
+    }
+
+    const response = await fetch("/api/token/refresh/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
     });
+
+    if (!response.ok) {
+      throw new Error("Failed to refresh token.");
+    }
+
+    const { access } = await response.json();
+    localStorage.setItem("accessToken", access);
+    return access;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    handleLogout();
+    return null;
+  }
 }
 
-// --- Initialize WebSocket ---
-function initializeWebSocket(roomId) {
-    if (socket) socket.close();
+function handleLogout() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("loggedInUser");
 
-    socket = new WebSocket(`${socketBaseUrl}${roomId}/`);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.close();
+  }
 
-    socket.onopen = () => {
-        console.log("WebSocket connected.");
-        sendWebSocketMessage("get_initial_state", { room_id: roomId });
-    };
-
-    socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("Received WebSocket message:", data);
-        handleWebSocketMessage(data);
-    };
-
-    socket.onerror = (error) => console.error("WebSocket error:", error);
-    socket.onclose = () => {
-        console.warn("WebSocket disconnected.");
-    };
+  toggleVisibility(DOM.mainContainer, false);
+  toggleVisibility(DOM.loginContainer, true);
+  createNotification("You have been logged out.", "info");
 }
 
-// --- Handle WebSocket Messages ---
+DOM.loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = DOM.loginUsernameInput.value.trim();
+  const password = DOM.loginPasswordInput.value.trim();
+
+  if (await login(username, password)) {
+    toggleVisibility(DOM.loginContainer, false);
+    toggleVisibility(DOM.mainContainer, true);
+    initializeApp();
+    createNotification(`Welcome, ${username}!`, "success");
+  } else {
+    showAlert("Login failed - please check username/password");
+    createNotification("Login failed. Please try again.", "error");
+  }
+});
+
+DOM.logoutButton.addEventListener("click", handleLogout);
+
+// =============== WEBSOCKET & SYNC LOGIC =================
+function initializeWebSocket() {
+  const accessToken = localStorage.getItem("accessToken");
+  if (!accessToken) {
+    console.error("Access token not found. Please log in.");
+    createNotification("Access token missing. Please log in.", "error");
+    return;
+  }
+
+  const socketUrl = `${socketBaseUrl}?token=${accessToken}`;
+  socket = new WebSocket(socketUrl);
+
+  socket.onopen = () => {
+    console.log("WebSocket: connection established.");
+    sendWebSocketMessage("get_rooms", {});
+  };
+
+  socket.onerror = (error) => console.error("WebSocket error:", error);
+
+  socket.onclose = () => {
+    console.warn("WebSocket: connection closed.");
+    createNotification("WebSocket connection closed.", "warning");
+  };
+
+  socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
+}
+
+async function sendWebSocketMessage(method, params) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.error("WebSocket is not open. Can't send:", method);
+    createNotification(`Cannot send ${method} - WebSocket is not connected.`, "error");
+    return;
+  }
+
+  const accessToken = localStorage.getItem("accessToken");
+  if (!accessToken) {
+    console.error("Access token missing. Refreshing...");
+    await refreshAccessToken();
+  }
+
+  const message = {
+    jsonrpc: "2.0",
+    method,
+    params,
+    id: Date.now(),
+  };
+
+  try {
+    socket.send(JSON.stringify(message));
+  } catch (error) {
+    console.error("Error sending WebSocket message:", error);
+    createNotification(`Error sending ${method}: ${error.message}`, "error");
+  }
+}
+
 function handleWebSocketMessage(data) {
-    if (data.result) {
-        switch (data.result.type) {
-            case "initial_state":
-                setPlayerState(data.result.state);
-                updateChatMessages(data.result.messages);
-                break;
-            case "set_sync_state":
-                setPlayerState(data.result.state);
-                break;
-            case "chat_message":
-                addChatMessage(data.result.username || "User", data.result.message);
-                break;
-        }
-    }
+  if (data.result) {
+    const handlers = {
+      get_rooms: () => renderRoomList(data.result.rooms),
+      initial_state: () => {
+        setPlayerState(data.result.state);
+        updateChatMessages(data.result.messages);
+        renderUserList(data.result.users);
+      },
+      set_sync_state: () => setPlayerState(data.result),
+      send_chat_message: () => addChatMessage(data.result.username, data.result.message),
+      update_users: () => renderUserList(data.result.users),
+      create_room: () => sendWebSocketMessage("get_rooms", {}),
+      get_movie: () => {
+        if (data.result.hls_playlist) initializeVideoPlayer(data.result.hls_playlist);
+      },
+      user_joined: () => {
+        addChatMessage("System", `${data.result.username} joined the room.`);
+        renderUserList(data.result.users);
+        createNotification(`User ${data.result.username} joined the room.`, "success");
+      },
+      user_left: () => {
+        addChatMessage("System", `${data.result.username} left the room.`);
+        renderUserList(data.result.users);
+        createNotification(`User ${data.result.username} left the room.`, "warning");
+      },
+      notification: () => {
+        const { message, level } = data.result;
+        createNotification(message, level.toLowerCase());
+      },
+    };
+    (handlers[data.result.type] || (() => console.log("Unknown result type:", data.result.type)))();
+  } else if (data.error) {
+    console.error("RPC Error:", data.error);
+    createNotification(`Error: ${data.error.message}`, "error");
+  }
 }
 
-// --- Update Chat Messages ---
-function updateChatMessages(messages) {
-    chatContainer.innerHTML = "";
-    messages.forEach((msg) => addChatMessage(msg.username, msg.message));
-}
+// Debounce for syncing
+const debounce = (func, delay) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => func(...args), delay);
+  };
+};
+const debouncedSyncPlayerState = debounce(syncPlayerState, 300);
 
-// --- Add Chat Message ---
-function addChatMessage(user, message) {
-    const messageElement = document.createElement("div");
-    messageElement.textContent = `${user}: ${message}`;
-    chatContainer.appendChild(messageElement);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// --- Set Video Player State ---
-function setPlayerState(state) {
-    if (state) {
-        const currentTime = parseFloat(state.current_time || 0);
-        const isPlaying = state.is_playing;
-
-        if (Math.abs(videoPlayer.currentTime - currentTime) > 1) {
-            videoPlayer.currentTime = currentTime;
-        }
-
-        if (isPlaying && videoPlayer.paused) {
-            videoPlayer.play();
-        } else if (!isPlaying && !videoPlayer.paused) {
-            videoPlayer.pause();
-        }
-    }
-}
-
-// --- Send Chat Message ---
-sendButton.addEventListener("click", () => {
-    const message = chatInput.value.trim();
-    if (message && currentRoomId) {
-        sendWebSocketMessage("send_chat_message", {
-            room_id: currentRoomId,
-            username: "User1", // Replace with dynamic user
-            message: message,
-        });
-        chatInput.value = "";
-    }
-});
-
-// --- Create Room ---
-createRoomForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const roomName = document.getElementById("room-name").value.trim();
-    const movieId = document.getElementById("movie-id").value.trim();
-    const roomType = document.getElementById("room-type").value;
-    const maxUsers = document.getElementById("max-users").value;
-
-    try {
-        const response = await fetch(`${apiBaseUrl}/room/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                room_id: roomName,
-                movie_id: movieId,
-                room_type: roomType,
-                max_users: parseInt(maxUsers, 10),
-            }),
-        });
-
-        const result = await response.json();
-        if (result.status === "success") {
-            alert("Room created successfully!");
-            fetchRooms();
-            createRoomForm.reset();
-        } else {
-            console.error("Failed to create room:", result);
-        }
-    } catch (error) {
-        console.error("Error creating room:", error);
-    }
-});
-
-// --- Video Events for Immediate Sync ---
-videoPlayer.addEventListener("play", () => syncPlayerState(true));
-videoPlayer.addEventListener("pause", () => syncPlayerState(false));
-videoPlayer.addEventListener("seeked", () => syncPlayerState(!videoPlayer.paused));
-
-// --- Synchronize State Immediately ---
 function syncPlayerState(isPlaying) {
-    const currentTime = videoPlayer.currentTime;
-    if (
-        Math.abs(currentTime - lastSyncState.current_time) > 0.1 || // Drift > 0.1 seconds
-        isPlaying !== lastSyncState.is_playing
-    ) {
-        sendWebSocketMessage("set_sync_state", {
-            room_id: currentRoomId,
-            current_time: currentTime,
-            is_playing: isPlaying,
-        });
-        lastSyncState = { current_time: currentTime, is_playing: isPlaying };
-    }
+  if (isSyncing || !currentRoomId) return;
+  const currentTime = DOM.videoPlayer.currentTime;
+  if (
+    Math.abs(currentTime - lastSyncState.current_time) > 0.5 ||
+    isPlaying !== lastSyncState.is_playing
+  ) {
+    sendWebSocketMessage("set_sync_state", {
+      room_id: currentRoomId,
+      current_time: currentTime,
+      is_playing: isPlaying,
+    });
+    lastSyncState = { current_time, is_playing };
+  }
 }
 
-// --- Send WebSocket Message ---
-function sendWebSocketMessage(method, params) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-            jsonrpc: "2.0",
-            method: method,
-            params: params,
-            id: 1,
-        }));
-    } else {
-        console.error("WebSocket is not open.");
-    }
+function setPlayerState(state) {
+  if (!state) return;
+  isSyncing = true;
+
+  const serverTime = parseFloat(state.current_time || 0);
+  const serverPlaying = state.is_playing;
+
+  if (Math.abs(DOM.videoPlayer.currentTime - serverTime) > 1) {
+    DOM.videoPlayer.currentTime = serverTime;
+  }
+  if (serverPlaying && DOM.videoPlayer.paused) {
+    DOM.videoPlayer.play();
+  } else if (!serverPlaying && !DOM.videoPlayer.paused) {
+    DOM.videoPlayer.pause();
+  }
+
+  setTimeout(() => (isSyncing = false), 500);
 }
 
-// --- Initialize Application ---
+
+// ============== VIDEO / CHAT / ROOMS =================
+function initializeVideoPlayer(hlsUrl) {
+  if (Hls.isSupported()) {
+    if (hls) hls.destroy();
+    hls = new Hls();
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(DOM.videoPlayer);
+    hls.on(Hls.Events.MANIFEST_PARSED, populateQualitySelector);
+  } else if (DOM.videoPlayer.canPlayType("application/vnd.apple.mpegurl")) {
+    DOM.videoPlayer.src = hlsUrl;
+  } else {
+    console.error("HLS is not supported in this browser.");
+    createNotification("HLS is not supported in this browser.", "error");
+  }
+}
+
+function populateQualitySelector() {
+  DOM.qualitySelector.innerHTML = `<option value="auto">Auto</option>`;
+  hls.levels.forEach((level, index) => {
+    const option = document.createElement("option");
+    option.value = index;
+    option.textContent = `${level.height}p`;
+    DOM.qualitySelector.appendChild(option);
+  });
+  DOM.qualitySelector.addEventListener("change", () => {
+    hls.currentLevel = DOM.qualitySelector.value === "auto" ? -1 : parseInt(DOM.qualitySelector.value, 10);
+    createNotification(`Video quality set to ${DOM.qualitySelector.options[DOM.qualitySelector.selectedIndex].text}`, "info");
+  });
+}
+
+function joinRoom(roomId, movieId) {
+  currentRoomId = roomId;
+  console.log("Joining room:", roomId);
+
+  sendWebSocketMessage("join_room", { room_id: roomId });
+  sendWebSocketMessage("get_initial_state", { room_id: roomId });
+
+  if (movieId) sendWebSocketMessage("get_movie", { movie_id: movieId });
+
+  createNotification(`You have joined room ${roomId}.`, "success");
+}
+
+setInterval(() => {
+  if (!currentRoomId) return;
+  debouncedSyncPlayerState(!DOM.videoPlayer.paused);
+}, 10000);
+
+function updateChatMessages(messages) {
+  DOM.chatMessages.innerHTML = "";
+  messages.forEach((msg) => {
+    const username = Object.keys(msg)[0];
+    const message = msg[username];
+    addChatMessage(username, message);
+  });
+}
+
+function addChatMessage(username, message) {
+  const messageElement = document.createElement("div");
+  messageElement.textContent = `${username || "Anonymous"}: ${message || "No message"}`;
+  DOM.chatMessages.appendChild(messageElement);
+  DOM.chatMessages.scrollTop = DOM.chatMessages.scrollHeight;
+}
+
+function renderUserList(users) {
+  DOM.userListItems.innerHTML = "";
+  users.forEach((user) => {
+    const li = document.createElement("li");
+    li.textContent = user.username || "Anonymous";
+    DOM.userListItems.appendChild(li);
+  });
+}
+
+function renderRoomList(rooms) {
+  DOM.roomListItems.innerHTML = "";
+  rooms.forEach((room) => {
+    const li = document.createElement("li");
+    li.textContent = `Room: ${room.room_id} (Type: ${room.room_type}, Max: ${room.max_users})`;
+    li.addEventListener("click", () => joinRoom(room.room_id, room.movie_id));
+    DOM.roomListItems.appendChild(li);
+  });
+}
+
+
+// =================== NOTIFICATIONS ===================
+
+function createNotification(message, type = "info") {
+  const container = DOM.notificationContainer;
+
+  const notification = document.createElement("div");
+  notification.classList.add("notification", type);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.classList.add("close-btn");
+  closeBtn.innerHTML = "&times;";
+  closeBtn.onclick = () => {
+    container.removeChild(notification);
+  };
+
+  notification.innerHTML = message;
+  notification.appendChild(closeBtn);
+
+  container.appendChild(notification);
+
+  setTimeout(() => {
+    if (container.contains(notification)) {
+      container.removeChild(notification);
+    }
+  }, 5000);
+}
+
+
+// Пример отправки уведомления вручную (можно удалить или использовать по необходимости)
+DOM.sendButton.addEventListener("click", () => {
+  const message = DOM.chatInput.value.trim();
+  if (message && currentRoomId) {
+    sendWebSocketMessage("send_chat_message", {
+      room_id: currentRoomId,
+      message,
+    });
+    addChatMessage("You", message); // Отображение отправленного сообщения
+    DOM.chatInput.value = "";
+  }
+});
+
+
+DOM.videoPlayer.addEventListener("play", () => debouncedSyncPlayerState(true));
+DOM.videoPlayer.addEventListener("pause", () => debouncedSyncPlayerState(false));
+DOM.videoPlayer.addEventListener("seeked", () => debouncedSyncPlayerState(!DOM.videoPlayer.paused));
+
+DOM.createRoomForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.error("WebSocket is not connected. Can't create room.");
+    return;
+  }
+  const roomName = document.getElementById("room-name").value.trim();
+  const movieId = document.getElementById("movie-id").value.trim();
+  const roomType = document.getElementById("room-type").value;
+  const maxUsers = document.getElementById("max-users").value;
+
+  sendWebSocketMessage("create_room", {
+    room_id: roomName,
+    movie_id: movieId,
+    room_type: roomType,
+    room_owner: 1,
+    max_users: parseInt(maxUsers, 10),
+  });
+  DOM.createRoomForm.reset();
+});
+
+
+// INIT APP
 function initializeApp() {
-    fetchRooms();
+  initializeWebSocket();
 }
-
-initializeApp();

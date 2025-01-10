@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from src.apps.movie.models import Movie, Category
+from src.apps.movie.models import Movie, Category, MovieUpload
 from src.apps.gallery.models import MovieImages
 
 
@@ -22,24 +22,26 @@ class MovieSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Movie
-        fields = ["title", "description", "hls_playlist", "categories", "images"]
+        fields = ["id", "title", "description", "hls_playlist", "categories", "images"]
 
     def create(self, validated_data):
-            categories_data = validated_data.pop("categories", [])
-            images_data = validated_data.pop("images", [])
+        categories_data = validated_data.pop("categories", [])
+        images_data = validated_data.pop("images", [])
 
-            movie = Movie.objects.create(**validated_data)
+        movie = Movie.objects.create(**validated_data)
 
-            for category_data in categories_data:
-                category, _ = Category.objects.get_or_create(**category_data)
-                movie.categories.add(category)
+        for category_data in categories_data:
+            category, _ = Category.objects.get_or_create(**category_data)
+            movie.categories.add(category)
 
+        MovieImages.objects.bulk_create(
+            [
+                MovieImages(movie=movie, image=image_data["image"])
+                for image_data in images_data
+            ]
+        )
 
-            MovieImages.objects.bulk_create([
-                MovieImages(movie=movie, image=image_data["image"]) for image_data in images_data
-            ])
-
-            return movie
+        return movie
 
     def update(self, instance, validated_data):
         categories_data = validated_data.pop("categories", [])
@@ -55,8 +57,17 @@ class MovieSerializer(serializers.ModelSerializer):
             instance.categories.add(category)
 
         MovieImages.objects.filter(movie=instance).delete()
-        MovieImages.objects.bulk_create([
-            MovieImages(movie=instance, image=image_data["image"]) for image_data in images_data
-        ])
+        MovieImages.objects.bulk_create(
+            [
+                MovieImages(movie=instance, image=image_data["image"])
+                for image_data in images_data
+            ]
+        )
 
         return instance
+
+
+class MovieUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MovieUpload
+        fields = ("title", "description", "video_file")
