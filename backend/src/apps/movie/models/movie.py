@@ -25,7 +25,7 @@ class Movie(TimeStampedModel):
         return self.images.first() if self.images.exists() else None
 
 
-class MovieUpload(models.Model):
+class MovieUpload(TimeStampedModel):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     video_file = models.FileField(upload_to="temp_videos/")
@@ -34,4 +34,4 @@ class MovieUpload(models.Model):
         choices=FileUploadStatus.FILE_UPLOAD_STATUS_CHOICES,
         default=FileUploadStatus.PENDING,
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+

@@ -32,7 +32,7 @@ admin.site.register(Movie, MovieAdmin)
 
 @admin.register(MovieUpload)
 class MovieUploadAdmin(admin.ModelAdmin):
-    list_display = ["title", "status", "created_at"]
+    list_display = ["title", "status", "created_at", "updated_at"]
     actions = ["retry_movie_upload"]
 
     def retry_movie_upload(self, request, queryset):
